@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": true,
+    "sourceMap": true,
+    "module": "commonjs",
+    "target": "esnext",
+    "noLib": false,
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "lib": [
+      "esnext",
+    ],
+    "types": [
+      "node"
+    ],
+    "experimentalDecorators": true
+  },
+  "include": [
+    "./src/**/*",
+  ]
+}
