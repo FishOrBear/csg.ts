@@ -31,7 +31,7 @@ export class CanTransformation
         return this.mirrored(plane);
     }
 
-    translate(v)
+    translate(v: Vector3D | number[])
     {
         return this.transform(Matrix4x4.translation(v));
     }

@@ -73,12 +73,12 @@ export function cube(options: {})
     result.properties.cube.center = Vector3D.Create(c);
     // add 6 connectors, at the centers of each face:
     result.properties.cube.facecenters = [
-        new Connector(new Vector3D(r.x, 0, 0).plus(c), [1, 0, 0], [0, 0, 1]),
-        new Connector(new Vector3D(-r.x, 0, 0).plus(c), [-1, 0, 0], [0, 0, 1]),
-        new Connector(new Vector3D(0, r.y, 0).plus(c), [0, 1, 0], [0, 0, 1]),
-        new Connector(new Vector3D(0, -r.y, 0).plus(c), [0, -1, 0], [0, 0, 1]),
-        new Connector(new Vector3D(0, 0, r.z).plus(c), [0, 0, 1], [1, 0, 0]),
-        new Connector(new Vector3D(0, 0, -r.z).plus(c), [0, 0, -1], [1, 0, 0])
+        new Connector(new Vector3D(r.x, 0, 0).plus(c), new Vector3D(1, 0, 0), new Vector3D(0, 0, 1)),
+        new Connector(new Vector3D(-r.x, 0, 0).plus(c), new Vector3D(-1, 0, 0), new Vector3D(0, 0, 1)),
+        new Connector(new Vector3D(0, r.y, 0).plus(c), new Vector3D(0, 1, 0), new Vector3D(0, 0, 1)),
+        new Connector(new Vector3D(0, -r.y, 0).plus(c), new Vector3D(0, -1, 0), new Vector3D(0, 0, 1)),
+        new Connector(new Vector3D(0, 0, r.z).plus(c), new Vector3D(0, 0, 1), new Vector3D(1, 0, 0)),
+        new Connector(new Vector3D(0, 0, -r.z).plus(c), new Vector3D(0, 0, -1), new Vector3D(1, 0, 0))
     ];
     return result;
 }
@@ -785,11 +785,11 @@ export function roundedCube(options: {
     let res = sphere({ radius: 1, resolution: resolution });
     res = res.scale(roundradius);
     innerradius.x > EPS &&
-        (res = res.stretchAtPlane([1, 0, 0], [0, 0, 0], 2 * innerradius.x));
+        (res = res.stretchAtPlane(new Vector3D(1, 0, 0), new Vector3D(0, 0, 0), 2 * innerradius.x));
     innerradius.y > EPS &&
-        (res = res.stretchAtPlane([0, 1, 0], [0, 0, 0], 2 * innerradius.y));
+        (res = res.stretchAtPlane(new Vector3D(0, 1, 0), new Vector3D(0, 0, 0), 2 * innerradius.y));
     innerradius.z > EPS &&
-        (res = res.stretchAtPlane([0, 0, 1], [0, 0, 0], 2 * innerradius.z));
+        (res = res.stretchAtPlane(new Vector3D(0, 0, 1), new Vector3D(0, 0, 0), 2 * innerradius.z));
     res = res.translate([
         -innerradius.x + center.x,
         -innerradius.y + center.y,
@@ -801,33 +801,33 @@ export function roundedCube(options: {
     res.properties.roundedCube.facecenters = [
         new Connector(
             new Vector3D(cuberadius.x, 0, 0).plus(center),
-            [1, 0, 0],
-            [0, 0, 1]
+            new Vector3D(1, 0, 0),
+            new Vector3D(0, 0, 1)
         ),
         new Connector(
             new Vector3D(-cuberadius.x, 0, 0).plus(center),
-            [-1, 0, 0],
-            [0, 0, 1]
+            new Vector3D(-1, 0, 0),
+            new Vector3D(0, 0, 1)
         ),
         new Connector(
             new Vector3D(0, cuberadius.y, 0).plus(center),
-            [0, 1, 0],
-            [0, 0, 1]
+            new Vector3D(0, 1, 0),
+            new Vector3D(0, 0, 1)
         ),
         new Connector(
             new Vector3D(0, -cuberadius.y, 0).plus(center),
-            [0, -1, 0],
-            [0, 0, 1]
+            new Vector3D(0, -1, 0),
+            new Vector3D(0, 0, 1)
         ),
         new Connector(
             new Vector3D(0, 0, cuberadius.z).plus(center),
-            [0, 0, 1],
-            [1, 0, 0]
+            new Vector3D(0, 0, 1),
+            new Vector3D(1, 0, 0)
         ),
         new Connector(
             new Vector3D(0, 0, -cuberadius.z).plus(center),
-            [0, 0, -1],
-            [1, 0, 0]
+            new Vector3D(0, 0, -1),
+            new Vector3D(1, 0, 0)
         )
     ];
     return res;

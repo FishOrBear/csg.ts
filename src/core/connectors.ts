@@ -15,21 +15,17 @@ import { Vector3D } from "./math/Vector3";
 // ge the same transformations applied as the solid
 export class Connector
 {
-    point: any;
-    axisvector: any;
-    normalvector: any;
-    constructor(point, axisvector, normalvector)
+    constructor(public point: Vector3D, public axisVector: Vector3D, public normalVector: Vector3D)
     {
-        this.point = Vector3D.Create(point);
-        this.axisvector = Vector3D.Create(axisvector).unit();
-        this.normalvector = Vector3D.Create(normalvector).unit();
+        this.axisVector = axisVector.unit();
+        this.normalVector = normalVector.unit();
     }
 
     normalized()
     {
-        let axisvector = this.axisvector.unit();
+        let axisvector = this.axisVector.unit();
         // make the normal vector truly normal:
-        let n = this.normalvector.cross(axisvector).unit();
+        let n = this.normalVector.cross(axisvector).unit();
         let normalvector = axisvector.cross(n);
         return new Connector(this.point, axisvector, normalvector);
     }
@@ -38,11 +34,11 @@ export class Connector
     {
         let point = this.point.multiply4x4(matrix4x4);
         let axisvector = this.point
-            .plus(this.axisvector)
+            .plus(this.axisVector)
             .multiply4x4(matrix4x4)
             .minus(point);
         let normalvector = this.point
-            .plus(this.normalvector)
+            .plus(this.normalVector)
             .multiply4x4(matrix4x4)
             .minus(point);
         return new Connector(point, axisvector, normalvector);
@@ -54,11 +50,13 @@ export class Connector
     //           true: the 'axis' vectors of the connectors should point in opposite direction
     //   normalrotation: degrees of rotation between the 'normal' vectors of the two
     //                   connectors
-
-    getTransformationTo(other, mirror, normalrotation)
+    //获取转换矩阵以将此连接器连接到另一个连接器
+    // other：连接器应连接到的连接器
+    // mirror：false：连接器的'axis'向量应指向相同的方向
+    //          true：连接器的“axis”向量应指向相反的方向
+    // normalrotation：两个连接器的“正常”向量之间的旋转度
+    getTransformationTo(other: Connector, mirror: boolean, normalrotation = 0)
     {
-        mirror = mirror ? true : false;
-        normalrotation = normalrotation ? Number(normalrotation) : 0;
         let us = this.normalized();
         other = other.normalized();
         // shift to the origin:
@@ -66,12 +64,12 @@ export class Connector
         // construct the plane crossing through the origin and the two axes:
         let axesplane = Plane.anyPlaneFromVector3Ds(
             new Vector3D(0, 0, 0),
-            us.axisvector,
-            other.axisvector
+            us.axisVector,
+            other.axisVector
         );
         let axesbasis = new OrthoNormalBasis(axesplane);
-        let angle1 = axesbasis.to2D(us.axisvector).angle();
-        let angle2 = axesbasis.to2D(other.axisvector).angle();
+        let angle1 = axesbasis.to2D(us.axisVector).angle();
+        let angle2 = axesbasis.to2D(other.axisVector).angle();
         let rotation = (180.0 * (angle2 - angle1)) / Math.PI;
         if (mirror) rotation += 180.0;
         transformation = transformation.multiply(
@@ -84,41 +82,32 @@ export class Connector
         let usAxesAligned = us.transform(transformation);
         // Now we have done the transformation for aligning the axes.
         // We still need to align the normals:
-        let normalsplane = Plane.fromNormalAndPoint(
-            other.axisvector,
-            new Vector3D(0, 0, 0)
-        );
+        let normalsplane = Plane.fromNormalAndPoint(other.axisVector, new Vector3D(0, 0, 0));
         let normalsbasis = new OrthoNormalBasis(normalsplane);
-        angle1 = normalsbasis.to2D(usAxesAligned.normalvector).angle();
-        angle2 = normalsbasis.to2D(other.normalvector).angle();
+        angle1 = normalsbasis.to2D(usAxesAligned.normalVector).angle();
+        angle2 = normalsbasis.to2D(other.normalVector).angle();
         rotation = (180.0 * (angle2 - angle1)) / Math.PI;
         rotation += normalrotation;
-        transformation = transformation.multiply(
-            normalsbasis.getProjectionMatrix()
-        );
+        transformation = transformation.multiply(normalsbasis.getProjectionMatrix());
         transformation = transformation.multiply(Matrix4x4.rotationZ(rotation));
-        transformation = transformation.multiply(
-            normalsbasis.getInverseProjectionMatrix()
-        );
+        transformation = transformation.multiply(normalsbasis.getInverseProjectionMatrix());
         // and translate to the destination point:
-        transformation = transformation.multiply(
-            Matrix4x4.translation(other.point)
-        );
+        transformation = transformation.multiply(Matrix4x4.translation(other.point));
         // let usAligned = us.transform(transformation);
         return transformation;
     }
 
     axisLine()
     {
-        return new Line3D(this.point, this.axisvector);
+        return new Line3D(this.point, this.axisVector);
     }
 
     // creates a new Connector, with the connection point moved in the direction of the axisvector
 
     extend(distance)
     {
-        let newpoint = this.point.plus(this.axisvector.unit().times(distance));
-        return new Connector(newpoint, this.axisvector, this.normalvector);
+        let newpoint = this.point.plus(this.axisVector.unit().times(distance));
+        return new Connector(newpoint, this.axisVector, this.normalVector);
     }
 }
 

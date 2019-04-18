@@ -118,19 +118,3 @@ export function polygon(params)
     }
     return fromPoints(points);
 }
-
-// FIXME: errr this is kinda just a special case of a polygon , why do we need it ?
-/** Construct a triangle
- * @returns {CAG} new triangle
- *
- * @example
- * let triangle = trangle({
- *   length: 10
- * })
- */
-export function triangle()
-{
-    let a = arguments;
-    if (a[0] && a[0].length) a = a[0];
-    return fromPoints(a);
-}

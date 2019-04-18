@@ -4,6 +4,7 @@ import { Line2D } from "./Line2";
 import { OrthoNormalBasis } from "./OrthoNormalBasis";
 import { Polygon } from "./Polygon3";
 import { Vector2D } from "./Vector2";
+import { Vector3D } from "./Vector3";
 import { Vertex3D } from "./Vertex3";
 
 //在这个文件中 Top    表示的是 y最小.
@@ -18,30 +19,44 @@ interface ActivePolygon
     topleft: Vector2D;
     bottomleft: Vector2D;
 
-    topright: Vector2D,
-    bottomright: Vector2D
+    topright: Vector2D;
+    bottomright: Vector2D;
 }
 
+interface OutPolygon
+{
+    topleft: Vector2D;
+    topright: Vector2D;
+    bottomleft: Vector2D;
+    bottomright: Vector2D;
+    leftline: Line2D;
+    rightline: Line2D;
+    outpolygon?: { leftpoints: Vector2D[]; rightpoints: Vector2D[]; };
+    leftlinecontinues?: boolean;
+    rightlinecontinues?: boolean;
+}
 
 //一组共面多边形的Retesselation函数。 请参阅此文件顶部的介绍。
-export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolygons: Polygon[])
+export function reTesselateCoplanarPolygons(
+    sourcePolygons: Polygon[],
+    destpolygons: Polygon[] = []
+): Polygon[]
 {
     let numPolygons = sourcePolygons.length;
-    if (numPolygons === 0)
-        return;
+    if (numPolygons === 0) return;
 
     let plane = sourcePolygons[0].plane;
     let shared = sourcePolygons[0].shared;
     let orthobasis = new OrthoNormalBasis(plane);
 
     // let xcoordinatebins = {}
-    let yCoordinateBins: { [key: number]: number } = {}   //整数map
-    let yCoordinateBinningFactor = 1.0 / EPS * 10
+    let yCoordinateBins: { [key: number]: number } = {}; //整数map
+    let yCoordinateBinningFactor = (1.0 / EPS) * 10;
 
-    let polygonVertices2d: (Vector2D[])[] = []           // (Vector2[])[];
-    let polygonTopVertexIndexes: number[] = []     // 每个多边形最顶层顶点的索引数组 minIndex
-    let topY2PolygonIndexes: { [key: number]: number[] } = {}         // Map<minY,polygonIndex[]>
-    let yCoordinateToPolygonIndexes: { [key: string]: { [key: number]: boolean } } = {} // Map<Y,Map<polygonIndex,boole> >           Y坐标映射所有的多边形
+    let polygonVertices2d: (Vector2D[])[] = []; // (Vector2[])[];
+    let polygonTopVertexIndexes: number[] = []; // 每个多边形最顶层顶点的索引数组 minIndex
+    let topY2PolygonIndexes: { [key: number]: number[] } = {}; // Map<minY,polygonIndex[]>
+    let yCoordinateToPolygonIndexes: { [key: string]: { [key: number]: boolean }; } = {}; // Map<Y,Map<polygonIndex,boole> >           Y坐标映射所有的多边形
 
     //将多边形转换为2d点表   polygonVertices2d
     //建立y对应的多边形Map   yCoordinateToPolygonIndexes
@@ -50,10 +65,9 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
         let poly3d = sourcePolygons[polygonIndex];
         let numVertices = poly3d.vertices.length;
 
-        if (numVertices === 0)
-            continue;
+        if (numVertices === 0) continue;
 
-        let vertices2d: Vector2D[] = []  //Vector2d[];
+        let vertices2d: Vector2D[] = []; //Vector2d[];
         let minIndex = -1;
         let miny: number, maxy: number;
         for (let i = 0; i < numVertices; i++)
@@ -76,13 +90,12 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
             }
             pos2d = Vector2D.Create(pos2d.x, newy);
             vertices2d.push(pos2d);
-            if ((i === 0) || (newy < miny))
+            if (i === 0 || newy < miny)
             {
                 miny = newy;
                 minIndex = i;
             }
-            if ((i === 0) || (newy > maxy))
-                maxy = newy;
+            if (i === 0 || newy > maxy) maxy = newy;
 
             if (!(newy in yCoordinateToPolygonIndexes))
                 yCoordinateToPolygonIndexes[newy] = {};
@@ -91,11 +104,9 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
         }
 
         //退化多边形，所有顶点都具有相同的y坐标。 从现在开始忽略它：
-        if (miny >= maxy)
-            continue;
+        if (miny >= maxy) continue;
 
-        if (!(miny in topY2PolygonIndexes))
-            topY2PolygonIndexes[miny] = [];
+        if (!(miny in topY2PolygonIndexes)) topY2PolygonIndexes[miny] = [];
 
         topY2PolygonIndexes[miny].push(polygonIndex);
 
@@ -123,21 +134,26 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
     //      topleft bottomleft   与当前y坐标交叉的多边形左侧的坐标
     //      topright bottomright 与当前y坐标交叉的多边形右侧的坐标
 
-    let activePolygons: ActivePolygon[] = [];    //polygon[]
-    let prevOutPolygonRow = []; //上一个外部多边形行?
+    let activePolygons: ActivePolygon[] = [];
+    let prevOutPolygonRow: OutPolygon[] = []; //上一个输出多边形行?
     for (let yindex = 0; yindex < yCoordinates.length; yindex++)
     {
-        let ycoordinate_as_string = yCoordinates[yindex];
-        let yCoordinate = Number(ycoordinate_as_string);
+        let yCoordinateStr = yCoordinates[yindex];
+        let yCoordinate = Number(yCoordinateStr);
 
-        // 用当前的y 更新 activepolygons
+        // 用当前的y 更新 activePolygons
         //  - 删除以y坐标结尾的所有多边形  删除polygon maxy = y 的多边形
         //  - 更新 leftvertexindex 和 rightvertexindex （指向当前顶点索引）
         //    在多边形的左侧和右侧
 
         // 迭代在Y坐标处有一个角的所有多边形
-        let polygonIndexeSwithCorner = yCoordinateToPolygonIndexes[ycoordinate_as_string];
-        for (let activePolygonIndex = 0; activePolygonIndex < activePolygons.length; ++activePolygonIndex)
+        let polygonIndexeSwithCorner =
+            yCoordinateToPolygonIndexes[yCoordinateStr];
+        for (
+            let activePolygonIndex = 0;
+            activePolygonIndex < activePolygons.length;
+            activePolygonIndex++
+        )
         {
             let activepolygon = activePolygons[activePolygonIndex];
             let polygonindex = activepolygon.polygonindex;
@@ -166,17 +182,19 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
             if (vertices2d[nextrightvertexindex].y === yCoordinate)
                 newrightvertexindex = nextrightvertexindex;
 
-            if ((newleftvertexindex !== activepolygon.leftvertexindex) //有向上更新
-                && (newleftvertexindex === newrightvertexindex))
-            {     //指向同一个点
+            if (
+                newleftvertexindex !== activepolygon.leftvertexindex  //有向上更新
+                && newleftvertexindex === newrightvertexindex         //指向同一个点
+            )
+            {
+
                 // We have increased leftvertexindex or decreased rightvertexindex, and now they point to the same vertex
                 // This means that this is the bottom point of the polygon. We'll remove it:
                 //我们增加了leftvertexindex或减少了rightvertexindex，现在它们指向同一个顶点
                 //这意味着这是多边形的底点。 我们将删除它：
                 activePolygons.splice(activePolygonIndex, 1);
                 --activePolygonIndex;
-            }
-            else
+            } else
             {
                 activepolygon.leftvertexindex = newleftvertexindex;
                 activepolygon.rightvertexindex = newrightvertexindex;
@@ -204,7 +222,7 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
             let middleYCoordinate = 0.5 * (yCoordinate + nextYCoordinate);
             // update activepolygons by adding any polygons that start here:
             // 添加从这里开始的多边形 到 activePolygons
-            let startingPolygonIndexes = topY2PolygonIndexes[ycoordinate_as_string];
+            let startingPolygonIndexes = topY2PolygonIndexes[yCoordinateStr];
             for (let polygonindex_key in startingPolygonIndexes)
             {
                 let polygonindex = startingPolygonIndexes[polygonindex_key];
@@ -245,19 +263,25 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
                     topright: vertices2d[toprightvertexindex],
                     bottomleft: vertices2d[nextleftvertexindex],
                     bottomright: vertices2d[nextrightvertexindex]
-                }
+                };
 
                 //二分插入
-                insertSorted(activePolygons, newactivepolygon, function (el1, el2)
+                insertSorted(activePolygons, newactivepolygon, function (el1: ActivePolygon, el2: ActivePolygon)
                 {
                     let x1 = interpolateBetween2DPointsForY(
-                        el1.topleft, el1.bottomleft, middleYCoordinate);
+                        el1.topleft,
+                        el1.bottomleft,
+                        middleYCoordinate
+                    );
                     let x2 = interpolateBetween2DPointsForY(
-                        el2.topleft, el2.bottomleft, middleYCoordinate);
+                        el2.topleft,
+                        el2.bottomleft,
+                        middleYCoordinate
+                    );
                     if (x1 > x2) return 1;
                     if (x1 < x2) return -1;
                     return 0;
-                })
+                });
             }
         }
 
@@ -266,7 +290,7 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
         // if(true)
         // {
 
-        let newOutPolygonRow = [];   //输出多边形
+        let newOutPolygonRow: OutPolygon[] = []; //输出多边形
 
         // Build the output polygons for the next row in newOutPolygonRow:
         //现在 activepolygons 是最新的
@@ -275,14 +299,30 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
         {
             let activepolygon = activePolygons[activepolygonKey];
 
-            let x = interpolateBetween2DPointsForY(activepolygon.topleft, activepolygon.bottomleft, yCoordinate)
-            let topleft = Vector2D.Create(x, yCoordinate)
-            x = interpolateBetween2DPointsForY(activepolygon.topright, activepolygon.bottomright, yCoordinate)
-            let topright = Vector2D.Create(x, yCoordinate)
-            x = interpolateBetween2DPointsForY(activepolygon.topleft, activepolygon.bottomleft, nextYCoordinate)
-            let bottomleft = Vector2D.Create(x, nextYCoordinate)
-            x = interpolateBetween2DPointsForY(activepolygon.topright, activepolygon.bottomright, nextYCoordinate)
-            let bottomright = Vector2D.Create(x, nextYCoordinate)
+            let x = interpolateBetween2DPointsForY(
+                activepolygon.topleft,
+                activepolygon.bottomleft,
+                yCoordinate
+            );
+            let topleft = Vector2D.Create(x, yCoordinate);
+            x = interpolateBetween2DPointsForY(
+                activepolygon.topright,
+                activepolygon.bottomright,
+                yCoordinate
+            );
+            let topright = Vector2D.Create(x, yCoordinate);
+            x = interpolateBetween2DPointsForY(
+                activepolygon.topleft,
+                activepolygon.bottomleft,
+                nextYCoordinate
+            );
+            let bottomleft = Vector2D.Create(x, nextYCoordinate);
+            x = interpolateBetween2DPointsForY(
+                activepolygon.topright,
+                activepolygon.bottomright,
+                nextYCoordinate
+            );
+            let bottomright = Vector2D.Create(x, nextYCoordinate);
             let outPolygon = {
                 topleft: topleft,
                 topright: topright,
@@ -290,65 +330,69 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
                 bottomright: bottomright,
                 leftline: Line2D.fromPoints(topleft, bottomleft),
                 rightline: Line2D.fromPoints(bottomright, topright)
-            }
+            };
 
             if (newOutPolygonRow.length > 0)
             {
-                let prevoutpolygon = newOutPolygonRow[newOutPolygonRow.length - 1]
-                let d1 = outPolygon.topleft.distanceTo(prevoutpolygon.topright)
-                let d2 = outPolygon.bottomleft.distanceTo(prevoutpolygon.bottomright)
-                if ((d1 < EPS) && (d2 < EPS))
+                let prevoutpolygon =
+                    newOutPolygonRow[newOutPolygonRow.length - 1];
+                let d1 = outPolygon.topleft.distanceTo(prevoutpolygon.topright);
+                let d2 = outPolygon.bottomleft.distanceTo(
+                    prevoutpolygon.bottomright
+                );
+                if (d1 < EPS && d2 < EPS)
                 {
                     // we can join this polygon with the one to the left:
-                    outPolygon.topleft = prevoutpolygon.topleft
-                    outPolygon.leftline = prevoutpolygon.leftline
-                    outPolygon.bottomleft = prevoutpolygon.bottomleft
-                    newOutPolygonRow.splice(newOutPolygonRow.length - 1, 1)
+                    outPolygon.topleft = prevoutpolygon.topleft;
+                    outPolygon.leftline = prevoutpolygon.leftline;
+                    outPolygon.bottomleft = prevoutpolygon.bottomleft;
+                    newOutPolygonRow.splice(newOutPolygonRow.length - 1, 1);
                 }
             }
 
-            newOutPolygonRow.push(outPolygon)
+            newOutPolygonRow.push(outPolygon);
         }
 
         if (yindex > 0)
         {
             // try to match the new polygons against the previous row:
             //尝试将新多边形与上一行匹配：
-            let prevContinuedIndexes = {}
-            let matchedIndexes = {}
+            let prevContinuedIndexes: { [key: number]: boolean } = {};
+            let matchedIndexes: { [key: number]: boolean } = {};
             for (let i = 0; i < newOutPolygonRow.length; i++)
             {
-                let thispolygon = newOutPolygonRow[i]
+                let thispolygon = newOutPolygonRow[i];
                 for (let ii = 0; ii < prevOutPolygonRow.length; ii++)
                 {
-                    if (!matchedIndexes[ii]) // not already processed?
+                    if (!matchedIndexes[ii])
                     {
+                        // not already processed?
                         // We have a match if the sidelines are equal or if the top coordinates
                         // are on the sidelines of the previous polygon
-                        let prevpolygon = prevOutPolygonRow[ii]
+                        let prevpolygon = prevOutPolygonRow[ii];
                         if (prevpolygon.bottomleft.distanceTo(thispolygon.topleft) < EPS)
                         {
                             if (prevpolygon.bottomright.distanceTo(thispolygon.topright) < EPS)
                             {
                                 // Yes, the top of this polygon matches the bottom of the previous:
-                                matchedIndexes[ii] = true
+                                matchedIndexes[ii] = true;
                                 // Now check if the joined polygon would remain convex:
-                                let d1 = thispolygon.leftline.direction().x - prevpolygon.leftline.direction().x
-                                let d2 = thispolygon.rightline.direction().x - prevpolygon.rightline.direction().x
-                                let leftlinecontinues = Math.abs(d1) < EPS
-                                let rightlinecontinues = Math.abs(d2) < EPS
-                                let leftlineisconvex = leftlinecontinues || (d1 >= 0)
-                                let rightlineisconvex = rightlinecontinues || (d2 >= 0)
+                                let d1 = thispolygon.leftline.direction().x - prevpolygon.leftline.direction().x;
+                                let d2 = thispolygon.rightline.direction().x - prevpolygon.rightline.direction().x;
+                                let leftlinecontinues = Math.abs(d1) < EPS;
+                                let rightlinecontinues = Math.abs(d2) < EPS;
+                                let leftlineisconvex = leftlinecontinues || d1 >= 0;
+                                let rightlineisconvex = rightlinecontinues || d2 >= 0;
                                 if (leftlineisconvex && rightlineisconvex)
                                 {
                                     // yes, both sides have convex corners:
                                     // This polygon will continue the previous polygon
-                                    thispolygon.outpolygon = prevpolygon.outpolygon
-                                    thispolygon.leftlinecontinues = leftlinecontinues
-                                    thispolygon.rightlinecontinues = rightlinecontinues
-                                    prevContinuedIndexes[ii] = true
+                                    thispolygon.outpolygon = prevpolygon.outpolygon;
+                                    thispolygon.leftlinecontinues = leftlinecontinues;
+                                    thispolygon.rightlinecontinues = rightlinecontinues;
+                                    prevContinuedIndexes[ii] = true;
                                 }
-                                break
+                                break;
                             }
                         }
                     } // if(!prevcontinuedindexes[ii])
@@ -360,63 +404,57 @@ export function reTesselateCoplanarPolygons(sourcePolygons: Polygon[], destpolyg
                 {
                     // polygon ends here
                     // Finish the polygon with the last point(s):
-                    let prevpolygon = prevOutPolygonRow[ii]
-                    prevpolygon.outpolygon.rightpoints.push(prevpolygon.bottomright)
+                    let prevpolygon = prevOutPolygonRow[ii];
+                    prevpolygon.outpolygon.rightpoints.push(prevpolygon.bottomright);
                     if (prevpolygon.bottomright.distanceTo(prevpolygon.bottomleft) > EPS)
                     {
                         // polygon ends with a horizontal line:
-                        prevpolygon.outpolygon.leftpoints.push(prevpolygon.bottomleft)
+                        prevpolygon.outpolygon.leftpoints.push(prevpolygon.bottomleft);
                     }
                     // reverse the left half so we get a counterclockwise circle:
-                    prevpolygon.outpolygon.leftpoints.reverse()
-                    let points2d = prevpolygon.outpolygon.rightpoints.concat(prevpolygon.outpolygon.leftpoints)
-                    let vertices3d = []
-                    points2d.map(function (point2d)
-                    {
-                        let point3d = orthobasis.to3D(point2d)
-                        let vertex3d = new Vertex3D(point3d)
-                        vertices3d.push(vertex3d)
-                    })
-                    let polygon = new Polygon(vertices3d, shared, plane)
-                    destpolygons.push(polygon)
+                    prevpolygon.outpolygon.leftpoints.reverse();
+                    let points2d = prevpolygon.outpolygon.rightpoints.concat(prevpolygon.outpolygon.leftpoints);
+
+                    let vertices = points2d.map(v => new Vertex3D(orthobasis.to3D(v)));
+                    let polygon = new Polygon(vertices, shared, plane);
+                    polygon.cachePoints2d = points2d;//缓存pts2d 以便生成uv.
+                    destpolygons.push(polygon);
                 }
             }
         }
 
         for (let i = 0; i < newOutPolygonRow.length; i++)
         {
-            let thispolygon = newOutPolygonRow[i]
+            let thispolygon = newOutPolygonRow[i];
             if (!thispolygon.outpolygon)
             {
                 // polygon starts here:
                 thispolygon.outpolygon = {
                     leftpoints: [],
                     rightpoints: []
-                }
-                thispolygon.outpolygon.leftpoints.push(thispolygon.topleft)
+                };
+                thispolygon.outpolygon.leftpoints.push(thispolygon.topleft);
                 if (thispolygon.topleft.distanceTo(thispolygon.topright) > EPS)
                 {
                     // we have a horizontal line at the top:
-                    thispolygon.outpolygon.rightpoints.push(thispolygon.topright)
+                    thispolygon.outpolygon.rightpoints.push(thispolygon.topright);
                 }
             } else
             {
                 // continuation of a previous row
                 if (!thispolygon.leftlinecontinues)
                 {
-                    thispolygon.outpolygon.leftpoints.push(thispolygon.topleft)
+                    thispolygon.outpolygon.leftpoints.push(thispolygon.topleft);
                 }
                 if (!thispolygon.rightlinecontinues)
                 {
-                    thispolygon.outpolygon.rightpoints.push(thispolygon.topright)
+                    thispolygon.outpolygon.rightpoints.push(thispolygon.topright);
                 }
             }
         }
 
-        prevOutPolygonRow = newOutPolygonRow
+        prevOutPolygonRow = newOutPolygonRow;
         // }
         //#endregion
-
     } // for yindex
 }
-

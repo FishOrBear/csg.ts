@@ -10,56 +10,55 @@ import { Vector3D } from "./Vector3";
 // defined by `Vertex`.
 export class Vertex3D
 {
-  tag: number;
-  constructor(public pos: Vector3D)
-  {
-  }
+    tag: number;
+    userData: any;
+    constructor(public pos: Vector3D) { }
 
-  // Return a vertex with all orientation-specific data (e.g. vertex normal) flipped. Called when the
-  // orientation of a polygon is flipped.
-  flipped()
-  {
-    return this
-  }
-
-  getTag()
-  {
-    let result = this.tag;
-    if (!result)
+    // Return a vertex with all orientation-specific data (e.g. vertex normal) flipped. Called when the
+    // orientation of a polygon is flipped.
+    flipped()
     {
-      result = getTag()
-      this.tag = result
+        return this;
     }
-    return result
-  }
 
-  // Create a new vertex between this vertex and `other` by linearly
-  // interpolating all properties using a parameter of `t`. Subclasses should
-  // override this to interpolate additional properties.
+    getTag()
+    {
+        let result = this.tag;
+        if (!result)
+        {
+            result = getTag();
+            this.tag = result;
+        }
+        return result;
+    }
 
-  interpolate(other, t)
-  {
-    const newpos = this.pos.lerp(other.pos, t);
-    return new Vertex3D(newpos)
-  }
+    // Create a new vertex between this vertex and `other` by linearly
+    // interpolating all properties using a parameter of `t`. Subclasses should
+    // override this to interpolate additional properties.
 
-  // Affine transformation of vertex. Returns a new Vertex
+    interpolate(other, t)
+    {
+        const newpos = this.pos.lerp(other.pos, t);
+        return new Vertex3D(newpos);
+    }
 
-  transform(matrix4x4)
-  {
-    const newpos = this.pos.multiply4x4(matrix4x4);
-    return new Vertex3D(newpos)
-  }
+    // Affine transformation of vertex. Returns a new Vertex
 
-  toString()
-  {
-    return this.pos.toString();
-  }
+    transform(matrix4x4)
+    {
+        const newpos = this.pos.multiply4x4(matrix4x4);
+        return new Vertex3D(newpos);
+    }
 
-  // create from an untyped object with identical property names:
-  static fromObject(obj)
-  {
-    const pos = Vector3D.Create(obj.pos);
-    return new Vertex3D(pos)
-  }
+    toString()
+    {
+        return this.pos.toString();
+    }
+
+    // create from an untyped object with identical property names:
+    static fromObject(obj)
+    {
+        const pos = Vector3D.Create(obj.pos);
+        return new Vertex3D(pos);
+    }
 }

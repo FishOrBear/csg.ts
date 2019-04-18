@@ -9,6 +9,9 @@ import { Connector } from "./connectors";
 import { defaultResolution2D, defaultResolution3D } from "./constants";
 import { CSG } from "./CSG";
 import { fromPolygons } from "./CSGFactories";
+import { CanTransformation } from "./ITrans";
+import { Matrix4x4 } from "./math/Matrix4";
+import { OrthoNormalBasis } from "./math/OrthoNormalBasis";
 import { Polygon } from "./math/Polygon3";
 import { Side } from "./math/Side";
 import { Vector2D } from "./math/Vector2";
@@ -24,15 +27,18 @@ import { canonicalizeCAG } from "./utils/canonicalize";
  * Each side is a line between 2 points.
  * @constructor
  */
-export class CAG
+export class CAG extends CanTransformation
 {
     sides: Side[] = [];
     isCanonicalized: boolean = false;
-    constructor() { }
-
-    union(cag)
+    constructor()
     {
-        let cags;
+        super();
+    }
+
+    union(cag: CAG[] | CAG)
+    {
+        let cags: any[];
         if (cag instanceof Array)
         {
             cags = cag;
@@ -42,7 +48,7 @@ export class CAG
         }
         let r = this._toCSGWall(-1, 1);
         r = r.union(
-            cags.map(cag =>
+            cags.map((cag: CAG) =>
             {
                 return cag._toCSGWall(-1, 1).reTesselated();
             })
@@ -84,7 +90,7 @@ export class CAG
         return fromFakeCSG(r).canonicalized();
     }
 
-    transform(matrix4x4)
+    transform(matrix4x4: Matrix4x4): this
     {
         let ismirror = matrix4x4.isMirroring();
         let newsides = this.sides.map(side =>
@@ -96,7 +102,7 @@ export class CAG
         {
             result = result.flipped();
         }
-        return result;
+        return result as this;
     }
 
     flipped()
@@ -110,24 +116,24 @@ export class CAG
     }
 
     // ALIAS !
-    center(axes)
+    center(axes: any)
     {
         return center({ axes }, [this]);
     }
 
     // ALIAS !
-    expandedShell(radius, resolution)
+    expandedShell(radius: any, resolution: any)
     {
         return expandedShellOfCAG(this, radius, resolution);
     }
 
     // ALIAS !
-    expand(radius, resolution)
+    expand(radius: any, resolution: any)
     {
         return expand(this, radius, resolution);
     }
 
-    contract(radius, resolution)
+    contract(radius: any, resolution: any)
     {
         return contract(this, radius, resolution);
     }
@@ -149,7 +155,7 @@ export class CAG
     // ALIAS !
     getBounds()
     {
-        let minpoint;
+        let minpoint: Vector2D;
         if (this.sides.length === 0)
         {
             minpoint = new Vector2D(0, 0);
@@ -169,78 +175,62 @@ export class CAG
     }
 
     // ALIAS !
-    isSelfIntersecting(debug)
+    isSelfIntersecting(debug: boolean)
     {
         return isSelfIntersecting(this, debug);
     }
 
     // extrusion: all aliases to simple functions
-    extrudeInOrthonormalBasis(orthonormalbasis, depth, options)
+    extrudeInOrthonormalBasis(orthonormalbasis: OrthoNormalBasis, depth: number, options: any)
     {
         return extrudeInOrthonormalBasis(this, orthonormalbasis, depth, options);
     }
 
     // ALIAS !
-    extrudeInPlane(axis1, axis2, depth, options)
+    extrudeInPlane(axis1: string, axis2: string, depth: number, options: any)
     {
         return extrudeInPlane(this, axis1, axis2, depth, options);
     }
 
-    extrude(options: {
-        offset: Vector3D;
-        twistangle?: number;
-        twiststeps?: number;
-    })
+    extrude(
+        { offsetVector, twistangle = 0, twiststeps = 1 }:
+            { offsetVector: Vector3D; twistangle?: number; twiststeps?: number; }): CSG
     {
-        if (this.sides.length === 0) return new CSG();
-
-        let offsetVector = options.offset;
-        let twistangle = options.twistangle || 0;
-        let twiststeps = options.twiststeps || defaultResolution3D;
-        if (offsetVector.z === 0)
-            throw new Error("offset cannot be orthogonal to Z axis");
-        if (twistangle === 0 || twiststeps < 1) twiststeps = 1;
-
         let normalVector = new Vector3D(0, 1, 0);
-        let polygons = [];
-        // bottom and top
-        polygons = polygons.concat(
-            this._toPlanePolygons({
-                translation: [0, 0, 0],
+        let polygons: Polygon[] = [
+            // bottom and top
+            ...this._toPlanePolygons({
+                translation: new Vector3D(0, 0, 0),
                 normalVector: normalVector,
                 flipped: !(offsetVector.z < 0)
-            })
-        );
-        polygons = polygons.concat(
-            this._toPlanePolygons({
+            }),
+            ...this._toPlanePolygons({
                 translation: offsetVector,
                 normalVector: normalVector.rotateZ(twistangle),
                 flipped: offsetVector.z < 0
             })
-        );
+        ];
         // walls
         for (let i = 0; i < twiststeps; i++)
         {
             let c1 = new Connector(
                 offsetVector.times(i / twiststeps),
-                [0, 0, offsetVector.z],
+                new Vector3D(0, 0, offsetVector.z),
                 normalVector.rotateZ((i * twistangle) / twiststeps)
             );
             let c2 = new Connector(
                 offsetVector.times((i + 1) / twiststeps),
-                [0, 0, offsetVector.z],
+                new Vector3D(0, 0, offsetVector.z),
                 normalVector.rotateZ(((i + 1) * twistangle) / twiststeps)
             );
-            polygons = polygons.concat(
-                this._toWallPolygons({ toConnector1: c1, toConnector2: c2 })
-            );
+            polygons.push(...this._toWallPolygons({ toConnector1: c1, toConnector2: c2 }));
         }
 
         return fromPolygons(polygons);
     }
 
     // ALIAS !
-    rotateExtrude(options)
+    rotateExtrude(options: any)
     {
         // FIXME options should be optional
         return rotateExtrude(this, options);
@@ -266,13 +256,13 @@ export class CAG
     }
 
     // ALIAS !
-    overCutInsideCorners(cutterradius)
+    overCutInsideCorners(cutterradius: any)
     {
         return overCutInsideCorners(this, cutterradius);
     }
 
     // ALIAS !
-    hasPointInside(point)
+    hasPointInside(point: any)
     {
         return hasPointInside(this, point);
     }
@@ -285,13 +275,13 @@ export class CAG
         return result;
     }
 
-    _toCSGWall(z0, z1)
+    _toCSGWall(z0: number, z1: number)
     {
         let polygons = this.sides.map(side => side.toPolygon3D(z0, z1));
         return fromPolygons(polygons);
     }
 
-    _toVector3DPairs(m)
+    _toVector3DPairs(m: Matrix4x4)
     {
         // transform m
         let pairs = this.sides.map(side =>
@@ -311,24 +301,35 @@ export class CAG
      * single translation, axisVector, normalVector arguments
      * (toConnector has precedence over single arguments if provided)
      */
-    _toPlanePolygons(options)
+    _toPlanePolygons(
+        {
+            toConnector,
+            flipped = false,
+            translation,
+            normalVector,
+            axisVector }
+            :
+            {
+                toConnector?: Connector;
+                flipped?: boolean;
+                translation?: Vector3D;
+                normalVector?: Vector3D;
+                axisVector?: Vector3D;
+            } = {}
+    )
     {
-        const defaults = { flipped: false };
-        options = Object.assign({}, defaults, options);
-        let { flipped } = options;
         // reference connector for transformation
-        let origin = [0, 0, 0];
-        let defaultAxis = [0, 0, 1];
-        let defaultNormal = [0, 1, 0];
+        let origin = new Vector3D(0, 0, 0);
+        let defaultAxis = new Vector3D(0, 0, 1);
+        let defaultNormal = new Vector3D(0, 1, 0);
         let thisConnector = new Connector(origin, defaultAxis, defaultNormal);
-        // translated connector per options
-        let translation = options.translation || origin;
-        let axisVector = options.axisVector || defaultAxis;
-        let normalVector = options.normalVector || defaultNormal;
+
+        translation = translation || origin;
+        normalVector = normalVector || defaultNormal;
+        axisVector = axisVector || defaultAxis;
+
         // will override above if options has toConnector
-        let toConnector =
-            options.toConnector ||
-            new Connector(translation, axisVector, normalVector);
+        toConnector = toConnector || new Connector(translation, axisVector, normalVector);
         // resulting transform
         let m = thisConnector.getTransformationTo(toConnector, false, 0);
         // create plane as a (partial non-closed) CSG in XY plane
@@ -373,16 +374,16 @@ export class CAG
         translation?: number[];
         axisVector?: Vector3D;
         normalVector?: Vector3D;
-    })
+    }): Polygon[]
     {
         // normals are going to be correct as long as toConn2.point - toConn1.point
         // points into cag normal direction (check in caller)
         // arguments: options.toConnector1, options.toConnector2, options.cag
         //     walls go from toConnector1 to toConnector2
         //     optionally, target cag to point to - cag needs to have same number of sides as this!
-        let origin = [0, 0, 0];
-        let defaultAxis = [0, 0, 1];
-        let defaultNormal = [0, 1, 0];
+        let origin = new Vector3D(0, 0, 0);
+        let defaultAxis = new Vector3D(0, 0, 1);
+        let defaultNormal = new Vector3D(0, 1, 0);
         let thisConnector = new Connector(origin, defaultAxis, defaultNormal);
         // arguments:
         let toConnector1 = options.toConnector1;
@@ -395,7 +396,7 @@ export class CAG
         let vps1 = this._toVector3DPairs(m1);
         let vps2 = toCag._toVector3DPairs(m2);
 
-        let polygons = [];
+        let polygons: Polygon[] = [];
         vps1.forEach((vp1, i) =>
         {
             polygons.push(
@@ -418,14 +419,15 @@ export class CAG
 
     /**
      * Convert to a list of points.
-     * @return {points[]} list of points in 2D space
+     * @return list of points in 2D space
      */
-    toPoints()
+    toPoints(): Vector2D[]
     {
         let points = this.sides.map(side => side.vertex0.pos);
         // due to the logic of fromPoints()
         // move the first point to the last
-        if (points.length > 0) points.push(points.shift());
+        if (points.length > 0)
+            points.push(points.shift());
         return points;
     }
 
@@ -447,7 +449,7 @@ export class CAG
             [side.vertex0, side.vertex1].map(v =>
             {
                 let vertextag = v.getTag();
-                let vertexindex;
+                let vertexindex: number;
                 if (!(vertextag in vertexmap))
                 {
                     vertexindex = numvertices++;
@@ -483,7 +485,7 @@ export class CAG
      * @param {Number} [options.resolution=defaultResolution2D] - number of sides per 360 rotation
      * @returns {CAG} new CAG object
      */
-    static circle(options)
+    static circle(options: { center?: any[]; radius?: any; resolution?: any; })
     {
         options = options || {};
         let center = parseOptionAs2DVector(options, "center", [0, 0]);

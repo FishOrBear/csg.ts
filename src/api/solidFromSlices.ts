@@ -1,6 +1,7 @@
 import { fromPolygons } from "../core/CSGFactories";
-import { fnSortByIndex } from "../core/utils";
 import { Polygon } from "../core/math/Polygon3";
+import { Vector3D } from "../core/math/Vector3";
+import { fnSortByIndex } from "../core/utils";
 
 // FIXME: WHY is this for 3D polygons and not for 2D shapes ?
 /**
@@ -41,14 +42,14 @@ export const solidFromSlices = function (polygon, options)
     if (!fnCallback)
     {
         let square = Polygon.createFromPoints([
-            [0, 0, 0],
-            [1, 0, 0],
-            [1, 1, 0],
-            [0, 1, 0]
+            new Vector3D(0, 0, 0),
+            new Vector3D(1, 0, 0),
+            new Vector3D(1, 1, 0),
+            new Vector3D(0, 1, 0)
         ]);
         fnCallback = function (t, slice)
         {
-            return t === 0 || t === 1 ? square.translate([0, 0, t]) : null;
+            return t === 0 || t === 1 ? square.translate(new Vector3D(0, 0, t)) : null;
         };
     }
     for (let i = 0, iMax = numSlices - 1; i <= iMax; i++)

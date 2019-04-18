@@ -251,7 +251,7 @@ export class Matrix4x4
     {
         rotationCenter = Vector3D.Create(rotationCenter);
         rotationAxis = Vector3D.Create(rotationAxis);
-        let rotationPlane = Plane.fromNormalAndPoint(rotationAxis, rotationCenter)
+        let rotationPlane = Plane.fromNormalAndPoint(rotationAxis, rotationCenter);
         let orthobasis = new OrthoNormalBasis(rotationPlane)
         let transformation = Matrix4x4.translation(rotationCenter.negated())
         transformation = transformation.multiply(orthobasis.getProjectionMatrix())

@@ -1,16 +1,17 @@
 import { FuzzyFactory } from "./FuzzyFactory";
 import { EPS } from "./constants";
-import { Polygon } from "./math/Polygon3";
+import { Polygon, Shared } from "./math/Polygon3";
 import { Plane } from "./math/Plane";
+import { Vertex3D } from "./math/Vertex3";
 
 export class FuzzyCSGFactory
 {
     vertexfactory = new FuzzyFactory(3, EPS);
     planefactory = new FuzzyFactory(4, EPS);
-    polygonsharedfactory: {} = {};
+    polygonsharedfactory: { [key: string]: Shared } = {};
     constructor() { }
 
-    getPolygonShared(sourceshared)
+    getPolygonShared(sourceshared: Shared): Shared
     {
         let hash = sourceshared.getHash();
         if (hash in this.polygonsharedfactory)
@@ -22,7 +23,7 @@ export class FuzzyCSGFactory
         }
     }
 
-    getVertex(sourcevertex)
+    getVertex(sourcevertex: Vertex3D): Vertex3D
     {
         let elements = [
             sourcevertex.pos._x,
@@ -36,7 +37,7 @@ export class FuzzyCSGFactory
         return result;
     }
 
-    getPlane(sourceplane: Plane)
+    getPlane(sourceplane: Plane): Plane
     {
         let elements: number[] = [
             sourceplane.normal._x,
@@ -51,31 +52,33 @@ export class FuzzyCSGFactory
         return result;
     }
 
-    getPolygon(sourcepolygon: Polygon)
+    getPolygon(sourcePolygon: Polygon, outputPolygon = sourcePolygon): Polygon
     {
-        let newplane = this.getPlane(sourcepolygon.plane);
-        let newshared = this.getPolygonShared(sourcepolygon.shared);
-        let _this = this;
-        let newvertices = sourcepolygon.vertices.map(vertex =>
-            _this.getVertex(vertex)
-        );
+        let newPlane = this.getPlane(sourcePolygon.plane);
+        let newShared = this.getPolygonShared(sourcePolygon.shared);
+        let newVertices = sourcePolygon.vertices.map(vertex => this.getVertex(vertex));
         // two vertices that were originally very close may now have become
         // truly identical (referring to the same Vertex object).
         // Remove duplicate vertices:
-        let newverticesDedup = [];
-        if (newvertices.length > 0)
+        let newVerticesDedup: Vertex3D[] = [];//新的顶点列表(已过滤重复)
+        if (newVertices.length > 0)
         {
-            let prevvertextag = newvertices[newvertices.length - 1].getTag();
-            newvertices.forEach(vertex =>
+            let prevVertexTag = newVertices[newVertices.length - 1].getTag();
+            for (let vertex of newVertices)
             {
                 let vertextag = vertex.getTag();
-                if (vertextag !== prevvertextag) newverticesDedup.push(vertex);
-                prevvertextag = vertextag;
-            });
+                if (vertextag !== prevVertexTag)
+                    newVerticesDedup.push(vertex);
+                prevVertexTag = vertextag;
+            }
         }
         // If it's degenerate, remove all vertices:
-        if (newverticesDedup.length < 3) newverticesDedup = [];
+        if (newVerticesDedup.length < 3)
+            newVerticesDedup = [];
 
-        return new Polygon(newverticesDedup, newshared, newplane);
+        outputPolygon.vertices = newVertices;
+        outputPolygon.shared = newShared;
+        outputPolygon.plane = newPlane;
+        return outputPolygon;
     }
 }

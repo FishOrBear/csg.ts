@@ -7,6 +7,7 @@ import { Vector2D } from "../core/math/Vector2";
 import { Vertex3D } from "../core/math/Vertex3";
 import { fnNumberSort, isCSG } from "../core/utils";
 import { sphere } from "./primitives3d";
+import { CAG } from "../core/CAG";
 
 export const expand = (shape, radius, resolution) =>
 {
@@ -40,7 +41,7 @@ export const contract = (shape, radius, resolution) =>
 
 export const expandedShellOfCAG = (_cag, radius, resolution) =>
 {
-    const CAG = require("../core/CAG"); // FIXME, circular dependency !!
+    // const CAG = require("../core/CAG"); // FIXME, circular dependency !!
     resolution = resolution || 8;
     if (resolution < 4) resolution = 4;
     let cags = [];

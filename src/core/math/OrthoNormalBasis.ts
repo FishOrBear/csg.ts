@@ -18,20 +18,15 @@ export class OrthoNormalBasis
     u: Vector3D;
     plane: Plane;
     planeorigin: Vector3D;
-    constructor(plane: Plane, rightvector?: Vector3D | number[])
+    constructor(
+        plane: Plane,
+        rightVector: Vector3D = plane.normal.randomNonParallelVector()
+    )
     {
-        if (arguments.length < 2)
-        {
-            // choose an arbitrary right hand vector, making sure it is somewhat orthogonal to the plane normal:
-            rightvector = plane.normal.randomNonParallelVector()
-        } else
-        {
-            rightvector = Vector3D.Create(rightvector)
-        }
-        this.v = plane.normal.cross(rightvector).unit()
-        this.u = this.v.cross(plane.normal)
-        this.plane = plane
-        this.planeorigin = plane.normal.times(plane.w)
+        this.v = plane.normal.cross(rightVector).unit();
+        this.u = this.v.cross(plane.normal);
+        this.plane = plane;
+        this.planeorigin = plane.normal.times(plane.w);
     }
 
     // Get an orthonormal basis for the standard XYZ planes.
@@ -43,109 +38,114 @@ export class OrthoNormalBasis
     //   the 2d Y axis maps to the 3D Z axis.
     static GetCartesian(xaxisid: string, yaxisid: string)
     {
-        let axisid = xaxisid + '/' + yaxisid
-        let planenormal, rightvector
-        if (axisid === 'X/Y')
+        let axisid = xaxisid + "/" + yaxisid;
+        let planenormal: number[], rightvector: number[];
+        if (axisid === "X/Y")
         {
-            planenormal = [0, 0, 1]
-            rightvector = [1, 0, 0]
-        } else if (axisid === 'Y/-X')
+            planenormal = [0, 0, 1];
+            rightvector = [1, 0, 0];
+        } else if (axisid === "Y/-X")
         {
-            planenormal = [0, 0, 1]
-            rightvector = [0, 1, 0]
-        } else if (axisid === '-X/-Y')
+            planenormal = [0, 0, 1];
+            rightvector = [0, 1, 0];
+        } else if (axisid === "-X/-Y")
         {
-            planenormal = [0, 0, 1]
-            rightvector = [-1, 0, 0]
-        } else if (axisid === '-Y/X')
+            planenormal = [0, 0, 1];
+            rightvector = [-1, 0, 0];
+        } else if (axisid === "-Y/X")
         {
-            planenormal = [0, 0, 1]
-            rightvector = [0, -1, 0]
-        } else if (axisid === '-X/Y')
+            planenormal = [0, 0, 1];
+            rightvector = [0, -1, 0];
+        } else if (axisid === "-X/Y")
         {
-            planenormal = [0, 0, -1]
-            rightvector = [-1, 0, 0]
-        } else if (axisid === '-Y/-X')
+            planenormal = [0, 0, -1];
+            rightvector = [-1, 0, 0];
+        } else if (axisid === "-Y/-X")
         {
-            planenormal = [0, 0, -1]
-            rightvector = [0, -1, 0]
-        } else if (axisid === 'X/-Y')
+            planenormal = [0, 0, -1];
+            rightvector = [0, -1, 0];
+        } else if (axisid === "X/-Y")
         {
-            planenormal = [0, 0, -1]
-            rightvector = [1, 0, 0]
-        } else if (axisid === 'Y/X')
+            planenormal = [0, 0, -1];
+            rightvector = [1, 0, 0];
+        } else if (axisid === "Y/X")
         {
-            planenormal = [0, 0, -1]
-            rightvector = [0, 1, 0]
-        } else if (axisid === 'X/Z')
+            planenormal = [0, 0, -1];
+            rightvector = [0, 1, 0];
+        } else if (axisid === "X/Z")
         {
-            planenormal = [0, -1, 0]
-            rightvector = [1, 0, 0]
-        } else if (axisid === 'Z/-X')
+            planenormal = [0, -1, 0];
+            rightvector = [1, 0, 0];
+        } else if (axisid === "Z/-X")
         {
-            planenormal = [0, -1, 0]
-            rightvector = [0, 0, 1]
-        } else if (axisid === '-X/-Z')
+            planenormal = [0, -1, 0];
+            rightvector = [0, 0, 1];
+        } else if (axisid === "-X/-Z")
         {
-            planenormal = [0, -1, 0]
-            rightvector = [-1, 0, 0]
-        } else if (axisid === '-Z/X')
+            planenormal = [0, -1, 0];
+            rightvector = [-1, 0, 0];
+        } else if (axisid === "-Z/X")
         {
-            planenormal = [0, -1, 0]
-            rightvector = [0, 0, -1]
-        } else if (axisid === '-X/Z')
+            planenormal = [0, -1, 0];
+            rightvector = [0, 0, -1];
+        } else if (axisid === "-X/Z")
         {
-            planenormal = [0, 1, 0]
-            rightvector = [-1, 0, 0]
-        } else if (axisid === '-Z/-X')
+            planenormal = [0, 1, 0];
+            rightvector = [-1, 0, 0];
+        } else if (axisid === "-Z/-X")
         {
-            planenormal = [0, 1, 0]
-            rightvector = [0, 0, -1]
-        } else if (axisid === 'X/-Z')
+            planenormal = [0, 1, 0];
+            rightvector = [0, 0, -1];
+        } else if (axisid === "X/-Z")
         {
-            planenormal = [0, 1, 0]
-            rightvector = [1, 0, 0]
-        } else if (axisid === 'Z/X')
+            planenormal = [0, 1, 0];
+            rightvector = [1, 0, 0];
+        } else if (axisid === "Z/X")
         {
-            planenormal = [0, 1, 0]
-            rightvector = [0, 0, 1]
-        } else if (axisid === 'Y/Z')
+            planenormal = [0, 1, 0];
+            rightvector = [0, 0, 1];
+        } else if (axisid === "Y/Z")
         {
-            planenormal = [1, 0, 0]
-            rightvector = [0, 1, 0]
-        } else if (axisid === 'Z/-Y')
+            planenormal = [1, 0, 0];
+            rightvector = [0, 1, 0];
+        } else if (axisid === "Z/-Y")
         {
-            planenormal = [1, 0, 0]
-            rightvector = [0, 0, 1]
-        } else if (axisid === '-Y/-Z')
+            planenormal = [1, 0, 0];
+            rightvector = [0, 0, 1];
+        } else if (axisid === "-Y/-Z")
         {
-            planenormal = [1, 0, 0]
-            rightvector = [0, -1, 0]
-        } else if (axisid === '-Z/Y')
+            planenormal = [1, 0, 0];
+            rightvector = [0, -1, 0];
+        } else if (axisid === "-Z/Y")
         {
-            planenormal = [1, 0, 0]
-            rightvector = [0, 0, -1]
-        } else if (axisid === '-Y/Z')
+            planenormal = [1, 0, 0];
+            rightvector = [0, 0, -1];
+        } else if (axisid === "-Y/Z")
         {
-            planenormal = [-1, 0, 0]
-            rightvector = [0, -1, 0]
-        } else if (axisid === '-Z/-Y')
+            planenormal = [-1, 0, 0];
+            rightvector = [0, -1, 0];
+        } else if (axisid === "-Z/-Y")
         {
-            planenormal = [-1, 0, 0]
-            rightvector = [0, 0, -1]
-        } else if (axisid === 'Y/-Z')
+            planenormal = [-1, 0, 0];
+            rightvector = [0, 0, -1];
+        } else if (axisid === "Y/-Z")
         {
-            planenormal = [-1, 0, 0]
-            rightvector = [0, 1, 0]
-        } else if (axisid === 'Z/Y')
+            planenormal = [-1, 0, 0];
+            rightvector = [0, 1, 0];
+        } else if (axisid === "Z/Y")
         {
-            planenormal = [-1, 0, 0]
-            rightvector = [0, 0, 1]
+            planenormal = [-1, 0, 0];
+            rightvector = [0, 0, 1];
         } else
         {
-            throw new Error('OrthoNormalBasis.GetCartesian: invalid combination of axis identifiers. Should pass two string arguments from [X,Y,Z,-X,-Y,-Z], being two different axes.')
+            throw new Error(
+                "OrthoNormalBasis.GetCartesian: invalid combination of axis identifiers. Should pass two string arguments from [X,Y,Z,-X,-Y,-Z], being two different axes."
+            );
         }
-        return new OrthoNormalBasis(new Plane(Vector3D.Create(planenormal), 0), Vector3D.Create(rightvector))
+        return new OrthoNormalBasis(
+            new Plane(Vector3D.Create(planenormal), 0),
+            Vector3D.Create(rightvector)
+        );
     }
 
     /*
@@ -204,14 +204,16 @@ export class OrthoNormalBasis
         ]);
     }
 
-    to2D(vec3)
+    to2D(vec3: Vector3D)
     {
         return new Vector2D(vec3.dot(this.u), vec3.dot(this.v));
     }
 
-    to3D(vec2)
+    to3D(vec2: Vector2D)
     {
-        return this.planeorigin.plus(this.u.times(vec2.x)).plus(this.v.times(vec2.y));
+        return this.planeorigin
+            .plus(this.u.times(vec2.x))
+            .plus(this.v.times(vec2.y));
     }
 
     line3Dto2D(line3d)

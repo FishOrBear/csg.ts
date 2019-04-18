@@ -1,7 +1,17 @@
 import { EPS, _CSGDEBUG } from "./constants";
 import { Plane } from "./math/Plane";
 import { Polygon } from "./math/Polygon3";
+import { Vector3D } from "./math/Vector3";
 import { Vertex3D } from "./math/Vertex3";
+
+enum Type
+{
+    CoplanarFront = 0,
+    CoplanarBack = 1,
+    Front = 2,
+    Back = 3,
+    Spanning = 4,
+}
 
 // Returns object:
 // .type:
@@ -13,157 +23,138 @@ import { Vertex3D } from "./math/Vertex3";
 // In case the polygon is spanning, returns:
 // .front: a Polygon of the front part
 // .back: a Polygon of the back part
-function splitPolygonByPlane(plane, polygon)
+interface SplitPolygonData
 {
-    let result = {
-        type: null,
-        front: null,
-        back: null
-    };
+    type: Type;
+    front: Polygon;
+    back: Polygon;
+}
+function splitPolygonByPlane(plane: Plane, polygon: Polygon): SplitPolygonData
+{
+    let result: SplitPolygonData = { type: null, front: null, back: null };
     // cache in local lets (speedup):
-    let planenormal = plane.normal;
+    let planeNormal = plane.normal;
     let vertices = polygon.vertices;
-    let numvertices = vertices.length;
+    let numVertices = vertices.length;
     if (polygon.plane.equals(plane))
     {
-        result.type = 0;
-    } else
+        result.type = Type.CoplanarFront;
+    }
+    else
     {
-        let thisw = plane.w;
-        let hasfront = false;
-        let hasback = false;
-        let vertexIsBack = [];
+        let thisW = plane.w;
+        let hasFront = false;
+        let hasBack = false;
+        let vertexIsBack: boolean[] = [];
         let MINEPS = -EPS;
-        for (let i = 0; i < numvertices; i++)
+        for (let i = 0; i < numVertices; i++)
         {
-            let t = planenormal.dot(vertices[i].pos) - thisw;
-            let isback = t < 0;
-            vertexIsBack.push(isback);
-            if (t > EPS) hasfront = true;
-            if (t < MINEPS) hasback = true;
+            let t = planeNormal.dot(vertices[i].pos) - thisW;
+            let isBack = t < 0;
+            vertexIsBack.push(isBack);
+            if (t > EPS) hasFront = true;
+            if (t < MINEPS) hasBack = true;
         }
-        if (!hasfront && !hasback)
+        if (!hasFront && !hasBack)
         {
             // all points coplanar
-            let t = planenormal.dot(polygon.plane.normal);
-            result.type = t >= 0 ? 0 : 1;
-        } else if (!hasback)
+            let t = planeNormal.dot(polygon.plane.normal);
+            result.type = t >= 0 ? Type.CoplanarFront : Type.CoplanarBack;
+        }
+        else if (!hasBack)
+            result.type = Type.Front;
+        else if (!hasFront)
+            result.type = Type.Back;
+        else
         {
-            result.type = 2;
-        } else if (!hasfront)
-        {
-            result.type = 3;
-        } else
-        {
-            // spanning
-            result.type = 4;
-            let frontvertices = [];
-            let backvertices = [];
-            let isback = vertexIsBack[0];
+            result.type = Type.Spanning;
+            let frontVertices: Vertex3D[] = [];
+            let backVertices: Vertex3D[] = [];
+            let isBack = vertexIsBack[0];
             for (
-                let vertexindex = 0;
-                vertexindex < numvertices;
-                vertexindex++
+                let vertexIndex = 0;
+                vertexIndex < numVertices;
+                vertexIndex++
             )
             {
-                let vertex = vertices[vertexindex];
-                let nextvertexindex = vertexindex + 1;
-                if (nextvertexindex >= numvertices) nextvertexindex = 0;
-                let nextisback = vertexIsBack[nextvertexindex];
-                if (isback === nextisback)
+                let vertex = vertices[vertexIndex];
+                let nextVertexindex = vertexIndex + 1;
+                if (nextVertexindex >= numVertices) nextVertexindex = 0;
+                let nextIsBack = vertexIsBack[nextVertexindex];
+                if (isBack === nextIsBack)
                 {
                     // line segment is on one side of the plane:
-                    if (isback)
-                    {
-                        backvertices.push(vertex);
-                    } else
-                    {
-                        frontvertices.push(vertex);
-                    }
-                } else
+                    if (isBack)
+                        backVertices.push(vertex);
+                    else
+                        frontVertices.push(vertex);
+                }
+                else
                 {
                     // line segment intersects plane:
                     let point = vertex.pos;
-                    let nextpoint = vertices[nextvertexindex].pos;
-                    let intersectionpoint = plane.splitLineBetweenPoints(
-                        point,
-                        nextpoint
-                    );
-                    let intersectionvertex = new Vertex3D(intersectionpoint);
-                    if (isback)
+                    let nextPoint = vertices[nextVertexindex].pos;
+                    let intersectionPoint = plane.splitLineBetweenPoints(point, nextPoint);
+                    let intersectionVertex = new Vertex3D(intersectionPoint);
+                    if (isBack)
                     {
-                        backvertices.push(vertex);
-                        backvertices.push(intersectionvertex);
-                        frontvertices.push(intersectionvertex);
-                    } else
+                        backVertices.push(vertex);
+                        backVertices.push(intersectionVertex);
+                        frontVertices.push(intersectionVertex);
+                    }
+                    else
                     {
-                        frontvertices.push(vertex);
-                        frontvertices.push(intersectionvertex);
-                        backvertices.push(intersectionvertex);
+                        frontVertices.push(vertex);
+                        frontVertices.push(intersectionVertex);
+                        backVertices.push(intersectionVertex);
                     }
                 }
-                isback = nextisback;
+                isBack = nextIsBack;
             } // for vertexindex
             // remove duplicate vertices:
             let EPS_SQUARED = EPS * EPS;
-            if (backvertices.length >= 3)
+            if (backVertices.length >= 3)
             {
-                let prevvertex = backvertices[backvertices.length - 1];
+                //删除重复的点
+                let prevVertex = backVertices[backVertices.length - 1];
                 for (
                     let vertexindex = 0;
-                    vertexindex < backvertices.length;
+                    vertexindex < backVertices.length;
                     vertexindex++
                 )
                 {
-                    let vertex = backvertices[vertexindex];
-                    if (
-                        vertex.pos.distanceToSquared(prevvertex.pos) <
-                        EPS_SQUARED
-                    )
+                    let vertex = backVertices[vertexindex];
+                    if (vertex.pos.distanceToSquared(prevVertex.pos) < EPS_SQUARED)
                     {
-                        backvertices.splice(vertexindex, 1);
+                        backVertices.splice(vertexindex, 1);
                         vertexindex--;
                     }
-                    prevvertex = vertex;
+                    prevVertex = vertex;
                 }
             }
-            if (frontvertices.length >= 3)
+            if (frontVertices.length >= 3)
             {
-                let prevvertex = frontvertices[frontvertices.length - 1];
+                let prevVertex = frontVertices[frontVertices.length - 1];
+                //删除重复的点
                 for (
-                    let vertexindex = 0;
-                    vertexindex < frontvertices.length;
-                    vertexindex++
+                    let vertexIndex = 0;
+                    vertexIndex < frontVertices.length;
+                    vertexIndex++
                 )
                 {
-                    let vertex = frontvertices[vertexindex];
-                    if (
-                        vertex.pos.distanceToSquared(prevvertex.pos) <
-                        EPS_SQUARED
-                    )
+                    let vertex = frontVertices[vertexIndex];
+                    if (vertex.pos.distanceToSquared(prevVertex.pos) < EPS_SQUARED)
                     {
-                        frontvertices.splice(vertexindex, 1);
-                        vertexindex--;
+                        frontVertices.splice(vertexIndex, 1);
+                        vertexIndex--;
                     }
-                    prevvertex = vertex;
+                    prevVertex = vertex;
                 }
             }
-            if (frontvertices.length >= 3)
-            {
-                result.front = new Polygon(
-                    frontvertices,
-                    polygon.shared,
-                    polygon.plane
-                );
-            }
-            if (backvertices.length >= 3)
-            {
-                result.back = new Polygon(
-                    backvertices,
-                    polygon.shared,
-                    polygon.plane
-                );
-            }
+            if (frontVertices.length >= 3)
+                result.front = new Polygon(frontVertices, polygon.shared, polygon.plane);
+            if (backVertices.length >= 3)
+                result.back = new Polygon(backVertices, polygon.shared, polygon.plane);
         }
     }
     return result;
@@ -184,32 +175,22 @@ function splitPolygonByPlane(plane, polygon)
 // constructor creates the root node:
 class PolygonTreeNode
 {
-    parent: any;
-    children: any[];
-    polygon: any;
-    removed: boolean;
-    constructor()
-    {
-        this.parent = null;
-        this.children = [];
-        this.polygon = null;
-        this.removed = false;
-    }
+    parent: PolygonTreeNode;
+    children: PolygonTreeNode[] = [];
+    polygon: Polygon;
+    removed: boolean = false;
+    constructor() { }
 
     // fill the tree with polygons. Should be called on the root node only; child nodes must
     // always be a derivate (split) of the parent node.
-    addPolygons(polygons)
+    addPolygons(polygons: Polygon[])
     {
         // new polygons can only be added to root node; children can only be splitted polygons
         if (!this.isRootNode())
-        {
             throw new Error("Assertion failed");
-        }
-        let _this = this;
-        polygons.map(polygon =>
-        {
-            _this.addChild(polygon);
-        });
+
+        for (let polygon of polygons)
+            this.addChild(polygon);
     }
 
     // remove a node
@@ -218,25 +199,24 @@ class PolygonTreeNode
 
     remove()
     {
-        if (!this.removed)
+        if (this.removed) return;
+
+        this.removed = true;
+
+        if (_CSGDEBUG)
         {
-            this.removed = true;
-
-            if (_CSGDEBUG)
-            {
-                if (this.isRootNode()) throw new Error("Assertion failed"); // can't remove root node
-                if (this.children.length) throw new Error("Assertion failed"); // we shouldn't remove nodes with children
-            }
-
-            // remove ourselves from the parent's children list:
-            let parentschildren = this.parent.children;
-            let i = parentschildren.indexOf(this);
-            if (i < 0) throw new Error("Assertion failed");
-            parentschildren.splice(i, 1);
-
-            // invalidate the parent's polygon, and of all parents above it:
-            this.parent.recursivelyInvalidatePolygon();
+            if (this.isRootNode()) throw new Error("Assertion failed"); // can't remove root node
+            if (this.children.length) throw new Error("Assertion failed"); // we shouldn't remove nodes with children
         }
+
+        // remove ourselves from the parent's children list:
+        let parentschildren = this.parent.children;
+        let i = parentschildren.indexOf(this);
+        if (i < 0) throw new Error("Assertion failed");
+        parentschildren.splice(i, 1);
+
+        // invalidate the parent's polygon, and of all parents above it:
+        this.parent.recursivelyInvalidatePolygon();
     }
 
     isRemoved()
@@ -257,39 +237,34 @@ class PolygonTreeNode
         this.invertSub();
     }
 
-    getPolygon()
+    getPolygon(): Polygon
     {
         if (!this.polygon) throw new Error("Assertion failed"); // doesn't have a polygon, which means that it has been broken down
         return this.polygon;
     }
 
-    getPolygons(result)
+    getPolygons(outPolygons: Polygon[] = []): Polygon[]
     {
-        let children = [this];
+        let children: PolygonTreeNode[] = [this];
         let queue = [children];
-        let i;
-        let j;
-        let l;
-        let node;
-        for (i = 0; i < queue.length; ++i)
+        for (let i = 0; i < queue.length; ++i)
         {
             // queue size can change in loop, don't cache length
             children = queue[i];
-            for (j = 0, l = children.length; j < l; j++)
+            for (let j = 0, l = children.length; j < l; j++)
             {
                 // ok to cache length
-                node = children[j];
+                let node = children[j];
                 if (node.polygon)
-                {
                     // the polygon hasn't been broken yet. We can ignore the children and return our polygon:
-                    result.push(node.polygon);
-                } else
-                {
+                    outPolygons.push(node.polygon);
+                else
                     // our polygon has been split up and broken, so gather all subpolygons from the children
                     queue.push(node.children);
-                }
             }
         }
+
+        return outPolygons;
     }
 
     // split the node by a plane; add the resulting nodes to the frontnodes and backnodes array
@@ -298,131 +273,104 @@ class PolygonTreeNode
     //  and added to both arrays.
 
     splitByPlane(
-        plane,
-        coplanarfrontnodes,
-        coplanarbacknodes,
-        frontnodes,
-        backnodes
+        plane: Plane,
+        coplanarFrontNodes: PolygonTreeNode[],
+        coplanarBackNodes: PolygonTreeNode[],
+        frontNodes: PolygonTreeNode[],
+        backNodes: PolygonTreeNode[]
     )
     {
         if (this.children.length)
         {
             let queue = [this.children];
-            let i;
-            let j;
-            let l;
-            let node;
-            let nodes;
-            for (i = 0; i < queue.length; i++)
+            for (let i = 0; i < queue.length; i++)
             {
                 // queue.length can increase, do not cache
-                nodes = queue[i];
-                for (j = 0, l = nodes.length; j < l; j++)
+                let nodes = queue[i];
+                for (let j = 0, l = nodes.length; j < l; j++)
                 {
                     // ok to cache length
-                    node = nodes[j];
+                    let node = nodes[j];
                     if (node.children.length)
-                    {
                         queue.push(node.children);
-                    } else
+                    else
                     {
                         // no children. Split the polygon:
-                        node._splitByPlane(
-                            plane,
-                            coplanarfrontnodes,
-                            coplanarbacknodes,
-                            frontnodes,
-                            backnodes
-                        );
+                        node.splitByPlaneNotChildren(plane, coplanarFrontNodes, coplanarBackNodes, frontNodes, backNodes);
                     }
                 }
             }
-        } else
+        }
+        else
         {
-            this._splitByPlane(
-                plane,
-                coplanarfrontnodes,
-                coplanarbacknodes,
-                frontnodes,
-                backnodes
-            );
+            this.splitByPlaneNotChildren(plane, coplanarFrontNodes, coplanarBackNodes, frontNodes, backNodes);
         }
     }
 
     // only to be called for nodes with no children
-
-    _splitByPlane(
-        plane,
-        coplanarfrontnodes,
-        coplanarbacknodes,
-        frontnodes,
-        backnodes
+    // 仅用于没有子节点的节点
+    private splitByPlaneNotChildren(
+        plane: Plane,
+        coplanarFrontNodes: PolygonTreeNode[],
+        coplanarBackNodes: PolygonTreeNode[],
+        frontNodes: PolygonTreeNode[],
+        backNodes: PolygonTreeNode[]
     )
     {
+        if (!this.polygon) return;
+
         let polygon = this.polygon;
-        if (polygon)
+        let bound = polygon.boundingSphere();
+        let sphereradius = bound[1] + EPS; // FIXME Why add imprecision?
+        let planenormal = plane.normal;
+        let spherecenter = bound[0];
+        let d = planenormal.dot(spherecenter) - plane.w;
+        if (d > sphereradius)
+            frontNodes.push(this);
+        else if (d < -sphereradius)
+            backNodes.push(this);
+        else
         {
-            let bound = polygon.boundingSphere();
-            let sphereradius = bound[1] + EPS; // FIXME Why add imprecision?
-            let planenormal = plane.normal;
-            let spherecenter = bound[0];
-            let d = planenormal.dot(spherecenter) - plane.w;
-            if (d > sphereradius)
+            let splitresult = splitPolygonByPlane(plane, polygon);
+            switch (splitresult.type)
             {
-                frontnodes.push(this);
-            } else if (d < -sphereradius)
-            {
-                backnodes.push(this);
-            } else
-            {
-                let splitresult = splitPolygonByPlane(plane, polygon);
-                switch (splitresult.type)
-                {
-                    case 0:
-                        // coplanar front:
-                        coplanarfrontnodes.push(this);
-                        break;
+                case Type.CoplanarFront:
+                    coplanarFrontNodes.push(this);
+                    break;
 
-                    case 1:
-                        // coplanar back:
-                        coplanarbacknodes.push(this);
-                        break;
+                case Type.CoplanarBack:
+                    coplanarBackNodes.push(this);
+                    break;
 
-                    case 2:
-                        // front:
-                        frontnodes.push(this);
-                        break;
+                case Type.Front:
+                    frontNodes.push(this);
+                    break;
 
-                    case 3:
-                        // back:
-                        backnodes.push(this);
-                        break;
+                case Type.Back:
+                    backNodes.push(this);
+                    break;
 
-                    case 4:
-                        // spanning:
-                        if (splitresult.front)
-                        {
-                            let frontnode = this.addChild(splitresult.front);
-                            frontnodes.push(frontnode);
-                        }
-                        if (splitresult.back)
-                        {
-                            let backnode = this.addChild(splitresult.back);
-                            backnodes.push(backnode);
-                        }
-                        break;
-                }
+                case Type.Spanning:
+                    if (splitresult.front)
+                    {
+                        let frontNode = this.addChild(splitresult.front);
+                        frontNodes.push(frontNode);
+                    }
+                    if (splitresult.back)
+                    {
+                        let backNode = this.addChild(splitresult.back);
+                        backNodes.push(backNode);
+                    }
+                    break;
             }
         }
     }
 
-    // PRIVATE methods from here:
     // add child to a node
     // this should be called whenever the polygon is split
     // a child should be created for every fragment of the split polygon
     // returns the newly created child
-
-    addChild(polygon)
+    addChild(polygon: Polygon): PolygonTreeNode
     {
         let newchild = new PolygonTreeNode();
         newchild.parent = this;
@@ -433,22 +381,15 @@ class PolygonTreeNode
 
     invertSub()
     {
-        let children = [this];
-        let queue = [children];
-        let i;
-        let j;
-        let l;
-        let node;
-        for (i = 0; i < queue.length; i++)
+        let queue: PolygonTreeNode[][] = [[this]];
+        for (let i = 0; i < queue.length; i++)
         {
-            children = queue[i];
-            for (j = 0, l = children.length; j < l; j++)
+            let children = queue[i];
+            for (let j = 0, l = children.length; j < l; j++)
             {
-                node = children[j];
+                let node = children[j];
                 if (node.polygon)
-                {
                     node.polygon = node.polygon.flipped();
-                }
                 queue.push(node.children);
             }
         }
@@ -456,14 +397,12 @@ class PolygonTreeNode
 
     recursivelyInvalidatePolygon()
     {
-        let node = this;
+        let node: PolygonTreeNode = this;
         while (node.polygon)
         {
             node.polygon = null;
             if (node.parent)
-            {
                 node = node.parent;
-            }
         }
     }
 }
@@ -474,44 +413,36 @@ class PolygonTreeNode
 // The actual tree is kept in this.rootnode
 export class Tree
 {
-    polygonTree: PolygonTreeNode;
-    rootnode: Node;
-    constructor(polygons)
+    polygonTree = new PolygonTreeNode();
+    rootNode = new Node(null);
+    constructor(polygons: Polygon[])
     {
-        this.polygonTree = new PolygonTreeNode();
-        this.rootnode = new Node(null);
-        if (polygons) this.addPolygons(polygons);
+        this.addPolygons(polygons);
     }
 
     invert()
     {
         this.polygonTree.invert();
-        this.rootnode.invert();
+        this.rootNode.invert();
     }
 
     // Remove all polygons in this BSP tree that are inside the other BSP tree
-    // `tree`.
-
-    clipTo(tree, alsoRemovecoplanarFront = false)
+    // `tree`. const
+    //this 减去 tree   删除此BSP树中位于其他BSP树内的所有多边形
+    clipTo(tree: Tree, alsoRemovecoplanarFront = false)
     {
-        this.rootnode.clipTo(tree, alsoRemovecoplanarFront);
+        this.rootNode.clipTo(tree, alsoRemovecoplanarFront);
     }
 
     allPolygons()
     {
-        let result = [];
-        this.polygonTree.getPolygons(result);
-        return result;
+        return this.polygonTree.getPolygons();
     }
 
-    addPolygons(polygons)
+    addPolygons(polygons: Polygon[])
     {
-        let _this = this;
-        let polygontreenodes = polygons.map(p =>
-        {
-            return _this.polygonTree.addChild(p);
-        });
-        this.rootnode.addPolygonTreeNodes(polygontreenodes);
+        let polygonTreeNodes = polygons.map((p) => this.polygonTree.addChild(p));
+        this.rootNode.addPolygonTreeNodes(polygonTreeNodes);
     }
 }
 
@@ -526,16 +457,12 @@ export class Tree
 class Node
 {
     plane: Plane;
-    front: any;
-    back: any;
-    polygontreenodes: any[];
-    parent: any;
-    constructor(parent)
+    front: Node;
+    back: Node;
+    polygonTreeNodes: PolygonTreeNode[] = [];
+    parent: Node;
+    constructor(parent: Node)
     {
-        this.plane = null;
-        this.front = null;
-        this.back = null;
-        this.polygontreenodes = [];
         this.parent = parent;
     }
 
@@ -557,143 +484,134 @@ class Node
 
     // clip polygontreenodes to our plane
     // calls remove() for all clipped PolygonTreeNodes
-
-    clipPolygons(polygontreenodes, alsoRemovecoplanarFront)
+    //将polygontreenodes剪辑到我们的飞机上
+    //为所有剪切的PolygonTreeNodes调用remove（）
+    clipPolygons(polygonTreeNodes: PolygonTreeNode[], alsoRemoveCoplanarFront: boolean)
     {
-        let args = { node: this, polygontreenodes: polygontreenodes };
-        let node;
-        let stack = [];
+        interface D
+        {
+            node: Node;
+            polygonTreeNodes: PolygonTreeNode[];
+        }
+
+        let args: D = { node: this, polygonTreeNodes };
+        let stack: D[] = [];
 
         do
         {
-            node = args.node;
-            polygontreenodes = args.polygontreenodes;
+            let node = args.node;
+            let polygonTreeNodes = args.polygonTreeNodes;
 
             // begin "function"
             if (node.plane)
             {
-                let backnodes = [];
-                let frontnodes = [];
-                let coplanarfrontnodes = alsoRemovecoplanarFront
-                    ? backnodes
-                    : frontnodes;
+                let backnodes: PolygonTreeNode[] = [];
+                let frontnodes: PolygonTreeNode[] = [];
+                let coplanarfrontnodes = alsoRemoveCoplanarFront ? backnodes : frontnodes;
                 let plane = node.plane;
-                let numpolygontreenodes = polygontreenodes.length;
-                for (let i = 0; i < numpolygontreenodes; i++)
+                for (let node1 of polygonTreeNodes)
                 {
-                    let node1 = polygontreenodes[i];
                     if (!node1.isRemoved())
-                    {
-                        node1.splitByPlane(
-                            plane,
-                            coplanarfrontnodes,
-                            backnodes,
-                            frontnodes,
-                            backnodes
-                        );
-                    }
+                        node1.splitByPlane(plane, coplanarfrontnodes, backnodes, frontnodes, backnodes);
                 }
 
                 if (node.front && frontnodes.length > 0)
-                {
-                    stack.push({
-                        node: node.front,
-                        polygontreenodes: frontnodes
-                    });
-                }
+                    stack.push({ node: node.front, polygonTreeNodes: frontnodes });
+
                 let numbacknodes = backnodes.length;
                 if (node.back && numbacknodes > 0)
-                {
-                    stack.push({
-                        node: node.back,
-                        polygontreenodes: backnodes
-                    });
-                } else
+                    stack.push({ node: node.back, polygonTreeNodes: backnodes });
+                else
                 {
                     // there's nothing behind this plane. Delete the nodes behind this plane:
+                    // 这架飞机背后什么也没有。 删除此平面后面的节点：
                     for (let i = 0; i < numbacknodes; i++)
-                    {
                         backnodes[i].remove();
-                    }
                 }
             }
             args = stack.pop();
-        } while (typeof args !== "undefined");
+        }
+        while (args);
     }
 
     // Remove all polygons in this BSP tree that are inside the other BSP tree
     // `tree`.
 
-    clipTo(tree, alsoRemovecoplanarFront)
+    clipTo(tree: Tree, alsoRemovecoplanarFront: boolean)
     {
-        let node = this;
-        let stack = [];
+        let node: Node = this;
+        let stack: Node[] = [];
         do
         {
-            if (node.polygontreenodes.length > 0)
+            if (node.polygonTreeNodes.length > 0)
             {
-                tree.rootnode.clipPolygons(
-                    node.polygontreenodes,
+                tree.rootNode.clipPolygons(
+                    node.polygonTreeNodes,
                     alsoRemovecoplanarFront
                 );
             }
             if (node.front) stack.push(node.front);
             if (node.back) stack.push(node.back);
             node = stack.pop();
-        } while (typeof node !== "undefined");
+        }
+        while (node);
     }
 
-    addPolygonTreeNodes(polygontreenodes)
+    addPolygonTreeNodes(polygonTreeNodes: PolygonTreeNode[])
     {
-        let args = { node: this, polygontreenodes: polygontreenodes };
-        let node;
-        let stack = [];
+        interface D
+        {
+            node: Node;
+            polygontreenodes: PolygonTreeNode[];
+        }
+        let args: D = { node: this, polygontreenodes: polygonTreeNodes };
+        let stack: D[] = [];
         do
         {
-            node = args.node;
-            polygontreenodes = args.polygontreenodes;
+            let node = args.node;
+            polygonTreeNodes = args.polygontreenodes;
 
-            if (polygontreenodes.length === 0)
+            if (polygonTreeNodes.length === 0)
             {
                 args = stack.pop();
                 continue;
             }
-            let _this = node;
             if (!node.plane)
             {
-                let bestplane = polygontreenodes[0].getPolygon().plane;
+                let bestplane = polygonTreeNodes[0].getPolygon().plane;
                 node.plane = bestplane;
             }
-            let frontnodes = [];
-            let backnodes = [];
+            let frontNodes: PolygonTreeNode[] = [];
+            let backNodes: PolygonTreeNode[] = [];
 
-            for (let i = 0, n = polygontreenodes.length; i < n; ++i)
+            for (let i = 0, n = polygonTreeNodes.length; i < n; ++i)
             {
-                polygontreenodes[i].splitByPlane(
-                    _this.plane,
-                    _this.polygontreenodes,
-                    backnodes,
-                    frontnodes,
-                    backnodes
+                polygonTreeNodes[i].splitByPlane(
+                    node.plane,
+                    node.polygonTreeNodes,
+                    backNodes,
+                    frontNodes,
+                    backNodes
                 );
             }
 
-            if (frontnodes.length > 0)
+            if (frontNodes.length > 0)
             {
                 if (!node.front) node.front = new Node(node);
-                stack.push({ node: node.front, polygontreenodes: frontnodes });
+                stack.push({ node: node.front, polygontreenodes: frontNodes });
             }
-            if (backnodes.length > 0)
+            if (backNodes.length > 0)
             {
                 if (!node.back) node.back = new Node(node);
-                stack.push({ node: node.back, polygontreenodes: backnodes });
+                stack.push({ node: node.back, polygontreenodes: backNodes });
             }
 
             args = stack.pop();
-        } while (typeof args !== "undefined");
+        }
+        while (args);
     }
 
-    getParentPlaneNormals(normals, maxdepth)
+    getParentPlaneNormals(normals: Vector3D[], maxdepth: number)
     {
         if (maxdepth > 0)
         {

@@ -13,7 +13,7 @@ import { CanTransformation } from "../ITrans";
  */
 export class Vector3D extends CanTransformation
 {
-    constructor(public _x: number, public _y: number, public _z)
+    constructor(public _x: number, public _y: number, public _z: number)
     {
         super();
     }
@@ -35,17 +35,17 @@ export class Vector3D extends CanTransformation
 
     set x(v)
     {
-        throw new Error('Vector3D is immutable')
+        throw new Error("Vector3D is immutable");
     }
 
     set y(v)
     {
-        throw new Error('Vector3D is immutable')
+        throw new Error("Vector3D is immutable");
     }
 
     set z(v)
     {
-        throw new Error('Vector3D is immutable')
+        throw new Error("Vector3D is immutable");
     }
 
     clone()
@@ -59,35 +59,40 @@ export class Vector3D extends CanTransformation
 
     abs()
     {
-        return new Vector3D(Math.abs(this._x), Math.abs(this._y), Math.abs(this._z));
+        return new Vector3D(
+            Math.abs(this._x),
+            Math.abs(this._y),
+            Math.abs(this._z)
+        );
     }
 
-    plus(a)
+    plus(a: Vector3D)
     {
         return new Vector3D(this._x + a._x, this._y + a._y, this._z + a._z);
     }
 
-    minus(a)
+    minus(a: Vector3D)
     {
         return new Vector3D(this._x - a._x, this._y - a._y, this._z - a._z);
     }
 
-    times(a)
+    //乘以
+    times(a: number)
     {
         return new Vector3D(this._x * a, this._y * a, this._z * a);
     }
 
-    dividedBy(a)
+    dividedBy(a: number)
     {
         return new Vector3D(this._x / a, this._y / a, this._z / a);
     }
 
-    dot(a)
+    dot(a: this)
     {
         return this._x * a._x + this._y * a._y + this._z * a._z;
     }
 
-    lerp(a, t)
+    lerp(a: Vector3D, t: number)
     {
         return this.plus(a.minus(this).times(t));
     }
@@ -107,24 +112,28 @@ export class Vector3D extends CanTransformation
         return this.dividedBy(this.length());
     }
 
-    cross(a)
+    cross(a: Vector3D)
     {
-        return new Vector3D(this._y * a._z - this._z * a._y, this._z * a._x - this._x * a._z, this._x * a._y - this._y * a._x);
+        return new Vector3D(
+            this._y * a._z - this._z * a._y,
+            this._z * a._x - this._x * a._z,
+            this._x * a._y - this._y * a._x
+        );
     }
 
     distanceTo(a)
     {
-        return this.minus(a).length()
+        return this.minus(a).length();
     }
 
     distanceToSquared(a)
     {
-        return this.minus(a).lengthSquared()
+        return this.minus(a).lengthSquared();
     }
 
     equals(a)
     {
-        return (this._x === a._x) && (this._y === a._y) && (this._z === a._z)
+        return this._x === a._x && this._y === a._y && this._z === a._z;
     }
 
     // Right multiply by a 4x4 matrix (the vector is interpreted as a row vector)
@@ -132,17 +141,25 @@ export class Vector3D extends CanTransformation
 
     multiply4x4(matrix4x4)
     {
-        return matrix4x4.leftMultiply1x3Vector(this)
+        return matrix4x4.leftMultiply1x3Vector(this);
     }
 
     transform(matrix4x4)
     {
-        return matrix4x4.leftMultiply1x3Vector(this)
+        return matrix4x4.leftMultiply1x3Vector(this);
     }
 
     toString()
     {
-        return '(' + this._x.toFixed(5) + ', ' + this._y.toFixed(5) + ', ' + this._z.toFixed(5) + ')';
+        return (
+            "(" +
+            this._x.toFixed(5) +
+            ", " +
+            this._y.toFixed(5) +
+            ", " +
+            this._z.toFixed(5) +
+            ")"
+        );
     }
 
     // find a vector that is somewhat perpendicular to this one
@@ -150,34 +167,37 @@ export class Vector3D extends CanTransformation
     randomNonParallelVector()
     {
         const abs = this.abs();
-        if ((abs._x <= abs._y) && (abs._x <= abs._z))
-        {
-            return new Vector3D(1, 0, 0)
-        } else if ((abs._y <= abs._x) && (abs._y <= abs._z))
-        {
-            return new Vector3D(0, 1, 0)
-        } else
-        {
-            return new Vector3D(0, 0, 1)
-        }
+        if (abs._x <= abs._y && abs._x <= abs._z)
+            return new Vector3D(1, 0, 0);
+        else if (abs._y <= abs._x && abs._y <= abs._z)
+            return new Vector3D(0, 1, 0);
+        else
+            return new Vector3D(0, 0, 1);
     }
 
     min(p)
     {
-        return new Vector3D(Math.min(this._x, p._x), Math.min(this._y, p._y), Math.min(this._z, p._z))
+        return new Vector3D(
+            Math.min(this._x, p._x),
+            Math.min(this._y, p._y),
+            Math.min(this._z, p._z)
+        );
     }
 
     max(p)
     {
-        return new Vector3D(Math.max(this._x, p._x), Math.max(this._y, p._y), Math.max(this._z, p._z))
+        return new Vector3D(
+            Math.max(this._x, p._x),
+            Math.max(this._y, p._y),
+            Math.max(this._z, p._z)
+        );
     }
 
     // This does the same as new Vector3D(x,y,z) but it doesn't go through the constructor
     // and the parameters are not validated. Is much faster.
     static Create(arr: number[] | Vector3D)
     {
-        if (arr instanceof Vector3D)
-            return arr;
+        if (arr instanceof Vector3D) return arr;
 
         return new Vector3D(arr[0], arr[1], arr[2]);
     }

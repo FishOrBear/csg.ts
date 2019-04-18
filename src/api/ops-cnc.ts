@@ -3,11 +3,12 @@ import { Vector3D } from "../core/math/Vector3";
 import { Connector } from "../core/connectors";
 import { Vector2D } from "../core/math/Vector2";
 import { fromPoints } from "../core/CAGFactories";
+import { CSG } from "../core/CSG";
 
 // Get the transformation that transforms this CSG such that it is lying on the z=0 plane,
 // as flat as possible (i.e. the least z-height).
 // So that it is in an orientation suitable for CNC milling
-export function getTransformationAndInverseTransformationToFlatLying(_csg)
+export function getTransformationAndInverseTransformationToFlatLying(_csg: CSG)
 {
     if (_csg.polygons.length === 0)
     {
@@ -29,8 +30,8 @@ export function getTransformationAndInverseTransformationToFlatLying(_csg)
         let xvector = new Vector3D(1, 0, 0);
         let yvector = new Vector3D(0, 1, 0);
         let zvector = new Vector3D(0, 0, 1);
-        let z0connectorx = new Connector([0, 0, 0], [0, 0, -1], xvector);
-        let z0connectory = new Connector([0, 0, 0], [0, 0, -1], yvector);
+        let z0connectorx = new Connector(new Vector3D(0, 0, 0), new Vector3D(0, 0, -1), xvector);
+        let z0connectory = new Connector(new Vector3D(0, 0, 0), new Vector3D(0, 0, -1), yvector);
         let isfirst = true;
         let minheight = 0;
         let maxdotz = 0;
@@ -114,13 +115,13 @@ export function getTransformationAndInverseTransformationToFlatLying(_csg)
     }
 }
 
-export function getTransformationToFlatLying(csg)
+export function getTransformationToFlatLying(csg: CSG)
 {
     let result = csg.getTransformationAndInverseTransformationToFlatLying();
     return result[0];
 }
 
-export function lieFlat(csg)
+export function lieFlat(csg: CSG)
 {
     let transformation = csg.getTransformationToFlatLying();
     return csg.transform(transformation);

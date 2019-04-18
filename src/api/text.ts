@@ -1,11 +1,9 @@
-const defaultFont = require("../fonts/single-line/hershey/simplex.js");
-
 const defaultsVectorParams = {
     xOffset: 0,
     yOffset: 0,
     input: "?",
     align: "left",
-    font: defaultFont,
+    // font: defaultFont,
     height: 14, // == old vector_xxx simplex font height
     lineSpacing: 2.142857142857143, // == 30/14 == old vector_xxx ratio
     letterSpacing: 1,

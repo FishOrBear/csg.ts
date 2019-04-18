@@ -2,12 +2,15 @@ import { center } from "../api/center";
 import { getTransformationAndInverseTransformationToFlatLying, getTransformationToFlatLying, lieFlat } from "../api/ops-cnc";
 import { cutByPlane, sectionCut } from "../api/ops-cuts";
 import { contract, expand, expandedShellOfCCSG } from "../api/ops-expandContract";
+import { Connector } from "./connectors";
 import { fromPolygons } from "./CSGFactories";
 import { CanTransformation } from "./ITrans";
 import { Matrix4x4 } from "./math/Matrix4";
 import { OrthoNormalBasis } from "./math/OrthoNormalBasis";
 import { Plane } from "./math/Plane";
 import { Polygon, Shared } from "./math/Polygon3";
+import { Vector3D } from "./math/Vector3";
+import { Vertex3D } from "./math/Vertex3";
 import { Properties } from "./Properties";
 import { Tree } from "./trees";
 import { canonicalizeCSG } from "./utils/canonicalize";
@@ -55,7 +58,7 @@ export class CSG extends CanTransformation
      *      |       |            |       |
      *      +-------+            +-------+
      */
-    union(csg: CSG | CSG[])
+    union(csg: CSG | CSG[]): CSG
     {
         let csgs: CSG[];
         if (csg instanceof Array)
@@ -74,35 +77,34 @@ export class CSG extends CanTransformation
         return csgs[i - 1].reTesselated().canonicalized();
     }
 
-    unionSub(csg, retesselate = false, canonicalize = false)
+    unionSub(csg: CSG, retesselate = false, canonicalize = false): CSG
     {
-        if (!this.mayOverlap(csg)) return this.unionForNonIntersecting(csg);
-        else
-        {
-            let a = new Tree(this.polygons);
-            let b = new Tree(csg.polygons);
-            a.clipTo(b, false);
+        if (!this.mayOverlap(csg))
+            return this.unionForNonIntersecting(csg);
 
-            // b.clipTo(a, true); // ERROR: this doesn't work
-            b.clipTo(a);
-            b.invert();
-            b.clipTo(a);
-            b.invert();
+        let a = new Tree(this.polygons);
+        let b = new Tree(csg.polygons);
+        a.clipTo(b, false);
 
-            let newpolygons = a.allPolygons().concat(b.allPolygons());
-            let result = fromPolygons(newpolygons);
-            result.properties = this.properties._merge(csg.properties);
-            if (retesselate) result = result.reTesselated();
-            if (canonicalize) result = result.canonicalized();
-            return result;
-        }
+        // b.clipTo(a, true); // ERROR: this doesn't work
+        b.clipTo(a);
+        b.invert();
+        b.clipTo(a);
+        b.invert();
+
+        let newpolygons = [...a.allPolygons(), ...b.allPolygons()];
+        let resultCSG = fromPolygons(newpolygons);
+        resultCSG.properties = this.properties._merge(csg.properties);
+        if (retesselate) resultCSG = resultCSG.reTesselated();
+        if (canonicalize) resultCSG = resultCSG.canonicalized();
+        return resultCSG;
     }
 
     // Like union, but when we know that the two solids are not intersecting
     // Do not use if you are not completely sure that the solids do not intersect!
-    unionForNonIntersecting(csg)
+    unionForNonIntersecting(csg: CSG): CSG
     {
-        let newpolygons = this.polygons.concat(csg.polygons);
+        let newpolygons = [...this.polygons, ...csg.polygons];
         let result = fromPolygons(newpolygons);
         result.properties = this.properties._merge(csg.properties);
         result.isCanonicalized = this.isCanonicalized && csg.isCanonicalized;
@@ -113,8 +115,7 @@ export class CSG extends CanTransformation
     /**
      * Return a new CSG solid representing space in this solid but
      * not in the given solids. Neither this solid nor the given solids are modified.
-     * @param {CSG[]} csg - list of CSG objects
-     * @returns {CSG} new CSG object
+     * @returns new CSG object
      * @example
      * let C = A.subtract(B)
      * @example
@@ -127,16 +128,13 @@ export class CSG extends CanTransformation
      *      |       |
      *      +-------+
      */
-    subtract(csg)
+    subtract(csg: CSG | CSG[]): CSG
     {
-        let csgs;
+        let csgs: CSG[];
         if (csg instanceof Array)
-        {
             csgs = csg;
-        } else
-        {
+        else
             csgs = [csg];
-        }
         let result: CSG = this;
         for (let i = 0; i < csgs.length; i++)
         {
@@ -146,7 +144,7 @@ export class CSG extends CanTransformation
         return result;
     }
 
-    subtractSub(csg, retesselate, canonicalize)
+    subtractSub(csg: CSG, retesselate = false, canonicalize = false): CSG
     {
         let a = new Tree(this.polygons);
         let b = new Tree(csg.polygons);
@@ -165,10 +163,8 @@ export class CSG extends CanTransformation
     /**
      * Return a new CSG solid representing space in both this solid and
      * in the given solids. Neither this solid nor the given solids are modified.
-     * @param {CSG[]} csg - list of CSG objects
-     * @returns {CSG} new CSG object
-     * @example
      * let C = A.intersect(B)
+     * @returns new CSG object
      * @example
      * +-------+
      * |       |
@@ -179,16 +175,13 @@ export class CSG extends CanTransformation
      *      |       |
      *      +-------+
      */
-    intersect(csg)
+    intersect(csg: CSG | CSG[]): CSG
     {
-        let csgs;
+        let csgs: CSG[];
         if (csg instanceof Array)
-        {
             csgs = csg;
-        } else
-        {
+        else
             csgs = [csg];
-        }
         let result: CSG = this;
         for (let i = 0; i < csgs.length; i++)
         {
@@ -198,7 +191,7 @@ export class CSG extends CanTransformation
         return result;
     }
 
-    intersectSub(csg, retesselate = false, canonicalize = false)
+    intersectSub(csg: CSG, retesselate = false, canonicalize = false): CSG
     {
         let a = new Tree(this.polygons);
         let b = new Tree(csg.polygons);
@@ -219,22 +212,16 @@ export class CSG extends CanTransformation
     /**
      * Return a new CSG solid with solid and empty space switched.
      * This solid is not modified.
-     * @returns {CSG} new CSG object
-     * @example
-     * let B = A.invert()
      */
-    invert()
+    invert(): CSG
     {
-        let flippedpolygons = this.polygons.map(p =>
-        {
-            return p.flipped();
-        });
+        let flippedpolygons = this.polygons.map(p => p.flipped());
         return fromPolygons(flippedpolygons);
         // TODO: flip properties?
     }
 
     // Affine transformation of CSG object. Returns a new CSG object
-    transform1(matrix4x4)
+    transform1(matrix4x4: Matrix4x4)
     {
         let newpolygons = this.polygons.map(p =>
         {
@@ -264,7 +251,7 @@ export class CSG extends CanTransformation
         let transformedplanes = {};
         let newpolygons = this.polygons.map(p =>
         {
-            let newplane;
+            let newplane: Plane;
             let plane = p.plane;
             let planetag = plane.getTag();
             if (planetag in transformedplanes)
@@ -277,12 +264,13 @@ export class CSG extends CanTransformation
             }
             let newvertices = p.vertices.map(v =>
             {
-                let newvertex;
+                let newvertex: Vertex3D;
                 let vertextag = v.getTag();
                 if (vertextag in transformedvertices)
                 {
                     newvertex = transformedvertices[vertextag];
-                } else
+                }
+                else
                 {
                     newvertex = v.transform(matrix4x4);
                     transformedvertices[vertextag] = newvertex;
@@ -300,32 +288,32 @@ export class CSG extends CanTransformation
     }
 
     // ALIAS !
-    center(axes)
+    center(axes: any)
     {
         return center({ axes }, [this]);
     }
 
     // ALIAS !
-    expand(radius, resolution)
+    expand(radius: number, resolution: any)
     {
         return expand(this, radius, resolution);
     }
 
     // ALIAS !
-    contract(radius, resolution)
+    contract(radius: any, resolution: any)
     {
         return contract(this, radius, resolution);
     }
 
     // ALIAS !
-    expandedShell(radius, resolution, unionWithThis)
+    expandedShell(radius: any, resolution: any, unionWithThis: any)
     {
         return expandedShellOfCCSG(this, radius, resolution, unionWithThis);
     }
 
     // cut the solid at a plane, and stretch the cross-section found along plane normal
     // note: only used in roundedCube() internally
-    stretchAtPlane(normal, point, length)
+    stretchAtPlane(normal: Vector3D, point: Vector3D, length: number)
     {
         let plane = Plane.fromNormalAndPoint(normal, point);
         let onb = new OrthoNormalBasis(plane);
@@ -366,32 +354,25 @@ export class CSG extends CanTransformation
         return bounds(this);
     }
 
-    /** returns true if there is a possibility that the two solids overlap
-     * returns false if we can be sure that they do not overlap
-     * NOTE: this is critical as it is used in UNIONs
-     * @param  {CSG} csg
-     */
-    mayOverlap(csg)
+    //如果两个实体有可能重叠,返回true
+    mayOverlap(csg: CSG): boolean
     {
         if (this.polygons.length === 0 || csg.polygons.length === 0)
-        {
             return false;
-        } else
-        {
-            let mybounds = bounds(this);
-            let otherbounds = bounds(csg);
-            if (mybounds[1].x < otherbounds[0].x) return false;
-            if (mybounds[0].x > otherbounds[1].x) return false;
-            if (mybounds[1].y < otherbounds[0].y) return false;
-            if (mybounds[0].y > otherbounds[1].y) return false;
-            if (mybounds[1].z < otherbounds[0].z) return false;
-            if (mybounds[0].z > otherbounds[1].z) return false;
-            return true;
-        }
+
+        let mybounds = bounds(this);
+        let otherbounds = bounds(csg);
+        if (mybounds[1].x < otherbounds[0].x) return false;
+        if (mybounds[0].x > otherbounds[1].x) return false;
+        if (mybounds[1].y < otherbounds[0].y) return false;
+        if (mybounds[0].y > otherbounds[1].y) return false;
+        if (mybounds[1].z < otherbounds[0].z) return false;
+        if (mybounds[0].z > otherbounds[1].z) return false;
+        return true;
     }
 
     // ALIAS !
-    cutByPlane(plane)
+    cutByPlane(plane: Plane)
     {
         return cutByPlane(this, plane);
     }
@@ -406,7 +387,7 @@ export class CSG extends CanTransformation
      * connectors
      * @returns {CSG} this csg, tranformed accordingly
      */
-    connectTo(myConnector, otherConnector, mirror, normalrotation)
+    connectTo(myConnector: Connector, otherConnector: Connector, mirror: boolean, normalrotation: number)
     {
         let matrix = myConnector.getTransformationTo(
             otherConnector,
@@ -421,7 +402,7 @@ export class CSG extends CanTransformation
      * @param  {Object} shared
      * @returns {CSG} Returns a new CSG solid, the original is unmodified!
      */
-    setShared(shared)
+    setShared(shared: Shared): CSG
     {
         let polygons = this.polygons.map(p =>
         {
@@ -438,7 +419,7 @@ export class CSG extends CanTransformation
      * @param  {Object} args
      * @returns {CSG} a copy of this CSG, with the given color
      */
-    setColor(args)
+    setColor(args: any)
     {
         let newshared = Shared.fromColor.apply(this, arguments);
         return this.setShared(newshared);
@@ -465,158 +446,27 @@ export class CSG extends CanTransformation
     // project the 3D CSG onto a plane
     // This returns a 2D CAG with the 'shadow' shape of the 3D solid when projected onto the
     // plane represented by the orthonormal basis
-    projectToOrthoNormalBasis(orthobasis)
+    projectToOrthoNormalBasis(orthobasis: any)
     {
         // FIXME:  DEPENDS ON CAG !!
         return projectToOrthoNormalBasis(this, orthobasis);
     }
 
     // FIXME: not finding any uses within our code ?
-    sectionCut(orthobasis)
+    sectionCut(orthobasis: OrthoNormalBasis)
     {
         return sectionCut(this, orthobasis);
     }
-
-    /** @return {Polygon[]} The list of polygons. */
-    toPolygons()
-    {
-        return this.polygons;
-    }
-
     toString()
     {
         let result = "CSG solid:\n";
         for (let p of this.polygons) result += p.toString();
         return result;
     }
-
-    /** returns a compact binary representation of this csg
-     * usually used to transfer CSG objects to/from webworkes
-     * NOTE: very interesting compact format, with a lot of reusable ideas
-     * @returns {Object} compact binary representation of a CSG
-     */
-    toCompactBinary()
-    {
-        let csg = this.canonicalized();
-        let numpolygons = csg.polygons.length;
-        let numpolygonvertices = 0;
-
-        let numvertices = 0;
-        let vertexmap = {};
-        let vertices = [];
-
-        let numplanes = 0;
-        let planemap = {};
-        let planes = [];
-
-        let shareds = [];
-        let sharedmap = {};
-        let numshared = 0;
-        // for (let i = 0, iMax = csg.polygons.length; i < iMax; i++) {
-        //  let p = csg.polygons[i];
-        //  for (let j = 0, jMax = p.length; j < jMax; j++) {
-        //      ++numpolygonvertices;
-        //      let vertextag = p[j].getTag();
-        //      if(!(vertextag in vertexmap)) {
-        //          vertexmap[vertextag] = numvertices++;
-        //          vertices.push(p[j]);
-        //      }
-        //  }
-        csg.polygons.map(polygon =>
-        {
-            // FIXME: why use map if we do not return anything ?
-            // either for... or forEach
-            polygon.vertices.map(vertex =>
-            {
-                ++numpolygonvertices;
-                let vertextag = vertex.getTag();
-                if (!(vertextag in vertexmap))
-                {
-                    vertexmap[vertextag] = numvertices++;
-                    vertices.push(vertex);
-                }
-            });
-
-            let planetag = polygon.plane.getTag();
-            if (!(planetag in planemap))
-            {
-                planemap[planetag] = numplanes++;
-                planes.push(polygon.plane);
-            }
-            let sharedtag = polygon.shared.getTag();
-            if (!(sharedtag in sharedmap))
-            {
-                sharedmap[sharedtag] = numshared++;
-                shareds.push(polygon.shared);
-            }
-        });
-
-        let numVerticesPerPolygon = new Uint32Array(numpolygons);
-        let polygonSharedIndexes = new Uint32Array(numpolygons);
-        let polygonVertices = new Uint32Array(numpolygonvertices);
-        let polygonPlaneIndexes = new Uint32Array(numpolygons);
-        let vertexData = new Float64Array(numvertices * 3);
-        let planeData = new Float64Array(numplanes * 4);
-        let polygonVerticesIndex = 0;
-
-        // FIXME: doublecheck : why does it go through the whole polygons again?
-        // can we optimise that ? (perhap due to needing size to init buffers above)
-        for (let polygonindex = 0; polygonindex < numpolygons; ++polygonindex)
-        {
-            let polygon = csg.polygons[polygonindex];
-            numVerticesPerPolygon[polygonindex] = polygon.vertices.length;
-            polygon.vertices.map(vertex =>
-            {
-                let vertextag = vertex.getTag();
-                let vertexindex = vertexmap[vertextag];
-                polygonVertices[polygonVerticesIndex++] = vertexindex;
-            });
-            let planetag = polygon.plane.getTag();
-            let planeindex = planemap[planetag];
-            polygonPlaneIndexes[polygonindex] = planeindex;
-            let sharedtag = polygon.shared.getTag();
-            let sharedindex = sharedmap[sharedtag];
-            polygonSharedIndexes[polygonindex] = sharedindex;
-        }
-        let verticesArrayIndex = 0;
-        vertices.map(vertex =>
-        {
-            const pos = vertex.pos;
-            vertexData[verticesArrayIndex++] = pos._x;
-            vertexData[verticesArrayIndex++] = pos._y;
-            vertexData[verticesArrayIndex++] = pos._z;
-        });
-        let planesArrayIndex = 0;
-        planes.map(plane =>
-        {
-            const normal = plane.normal;
-            planeData[planesArrayIndex++] = normal._x;
-            planeData[planesArrayIndex++] = normal._y;
-            planeData[planesArrayIndex++] = normal._z;
-            planeData[planesArrayIndex++] = plane.w;
-        });
-
-        let result = {
-            class: "CSG",
-            numPolygons: numpolygons,
-            numVerticesPerPolygon,
-            polygonPlaneIndexes,
-            polygonSharedIndexes,
-            polygonVertices,
-            vertexData,
-            planeData,
-            shared: shareds
-        };
-        return result;
-    }
-
-    /** returns the triangles of this csg
-     * @returns {Polygons} triangulated polygons
-     */
-    toTriangles()
+    toTriangles(): Polygon[]
     {
         let polygons: Polygon[] = [];
-        this.polygons.forEach(poly =>
+        for (let poly of this.polygons)
         {
             let firstVertex = poly.vertices[0];
             for (let i = poly.vertices.length - 3; i >= 0; i--)
@@ -633,7 +483,7 @@ export class CSG extends CanTransformation
                     )
                 );
             }
-        });
+        }
         return polygons;
     }
 }

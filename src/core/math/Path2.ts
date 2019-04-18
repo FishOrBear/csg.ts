@@ -20,23 +20,23 @@ import { Vector3D } from "./Vector3";
  */
 export class Path2
 {
-    points: any[];
-    closed: any;
+    points: Vector2D[];
+    closed: boolean;
 
     lastBezierControlPoint;
-    constructor(points = [], closed: boolean = false)
+    constructor(points: (number[])[] | Vector2D[] = [], closed: boolean = false)
     {
         // re-parse the points into Vector2D
         // and remove any duplicate points
-        let prevpoint = null;
+        let prevpoint: Vector2D = null;
         if (closed && points.length > 0)
         {
             prevpoint = new Vector2D(points[points.length - 1]);
         }
-        let newpoints = [];
-        points.map(point =>
+        let newpoints: Vector2D[] = [];
+        for (let p of points)
         {
-            point = new Vector2D(point);
+            let point = new Vector2D(p);
             let skip = false;
             if (prevpoint !== null)
             {
@@ -45,7 +45,7 @@ export class Path2
             }
             if (!skip) newpoints.push(point);
             prevpoint = point;
-        });
+        }
         this.points = newpoints;
         this.closed = closed;
     }
@@ -53,10 +53,8 @@ export class Path2
     concat(otherpath)
     {
         if (this.closed || otherpath.closed)
-        {
             throw new Error("Paths must not be closed");
-        }
-        let newpoints = this.points.concat(otherpath.points);
+        let newpoints: Vector2D[] = this.points.concat(otherpath.points);
         return new Path2(newpoints);
     }
 
@@ -78,9 +76,7 @@ export class Path2
     appendPoint(point)
     {
         if (this.closed)
-        {
             throw new Error("Path must not be closed");
-        }
         point = new Vector2D(point); // cast to Vector2D
         let newpoints = this.points.concat([point]);
         return new Path2(newpoints);
@@ -157,7 +153,7 @@ export class Path2
     {
         let cag = this.expandToCAG(width / 2, resolution);
         let result = cag.extrude({
-            offset: new Vector3D(0, 0, height)
+            offsetVector: new Vector3D(0, 0, height)
         });
         return result;
     }

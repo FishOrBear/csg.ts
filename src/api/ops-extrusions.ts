@@ -34,7 +34,7 @@ export function extrudeInOrthonormalBasis(
         throw new Error(
             "extrudeInPlane: the first parameter should be a OrthoNormalBasis"
         );
-    let extruded = cag.extrude({ offset: new Vector3D(0, 0, depth) });
+    let extruded = cag.extrude({ offsetVector: new Vector3D(0, 0, depth) });
     if (parseOptionAsBool(options, "symmetrical", false))
         extruded = extruded.translate([0, 0, -depth / 2]);
     let matrix = orthonormalbasis.getInverseProjectionMatrix();
@@ -82,9 +82,9 @@ export const rotateExtrude = function (cag: CAG, options)
     );
 
     alpha = alpha > 360 ? alpha % 360 : alpha;
-    let origin = [0, 0, 0];
+    let origin = new Vector3D(0, 0, 0);
     let axisV = new Vector3D(0, 1, 0);
-    let normalV = [0, 0, 1];
+    let normalV = new Vector3D(0, 0, 1);
     let polygons: Polygon[] = [];
     // planes only needed if alpha > 0
     let connS = new Connector(origin, axisV, normalV);

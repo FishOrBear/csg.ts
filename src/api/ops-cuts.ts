@@ -1,8 +1,9 @@
-import { Vector2D } from "../core/math/Vector2";
 import { EPS } from "../core/constants";
+import { CSG } from "../core/CSG";
 import { OrthoNormalBasis } from "../core/math/OrthoNormalBasis";
 import { Plane } from "../core/math/Plane";
 import { Polygon } from "../core/math/Polygon3";
+import { Vector2D } from "../core/math/Vector2";
 import { Vertex3D } from "../core/math/Vertex3";
 
 /** cuts a csg along a orthobasis
@@ -24,7 +25,7 @@ export const sectionCut = function (csg, orthobasis)
  * @param  {Plane} plane
  * @returns {CSG} the solid on the back side of the plane
  */
-export const cutByPlane = function (csg, plane)
+export function cutByPlane(csg: CSG, plane: Plane): CSG
 {
     if (csg.polygons.length === 0)
     {
